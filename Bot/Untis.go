@@ -44,13 +44,15 @@ func Auth() {
 	}
 
 	log.Println("Run")
-	res, err := http.Post(Url, "application/json", login)
+	LoginOut, err := http.Post(Url, "application/json", login)
 
 	if err != nil {
 		log.Printf("Error during authentication: %v", err)
 		return
 	}
-	log.Println(res)
-	log.Println("")
+	defer LoginOut.Body.Close()
+	out := LoginOut.Header.Values("Set-Cookie")
+
+	log.Println(out)
 
 }

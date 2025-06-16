@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"os"
 
-	//	"os/signal"
-	//	"syscall"
+	"os/signal"
+	"syscall"
 	"time"
 	Untis "untislogger/Bot"
 
@@ -45,14 +45,14 @@ func init() {
 func main() {
 	go Untis.Auth() //starting API calls function
 	// Create a channel to receive OS signals
-	/*	sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-		log.Println("Program is running. Press Ctrl+C to stop.")
+	log.Println("Program is running. Press Ctrl+C to stop.")
 
-		// Block until we receive a signal
-		<-sigChan
-		log.Println("Shutting down...")  */
+	// Block until we receive a signal
+	<-sigChan
+	log.Println("Shutting down...")
 }
 
 func testPubIP() {
