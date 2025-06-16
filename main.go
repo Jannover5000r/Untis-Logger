@@ -42,7 +42,7 @@ func init() {
 }
 
 func main() {
-	go Untis.Run() //starting API calls function
+	go Untis.Auth() //starting API calls function
 	// Create a channel to receive OS signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
