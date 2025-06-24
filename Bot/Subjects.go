@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-type subjectsResponse struct {
+type SubjectsResponse struct {
 	Jsonrpc string     `json:"jsonrpc"`
 	ID      string     `json:"id"`
 	Result  []subjects `json:"result"`
@@ -69,7 +69,7 @@ func Subjects(cookies []*http.Cookie) {
 	}
 	//responseString := string(response)
 	//log.Println("Repsonse ", responseString)
-	var Response subjectsResponse
+	var Response SubjectsResponse
 	err = json.Unmarshal(response, &Response)
 	if err != nil {
 		log.Fatalf("Error unmarshaling response: %v", err)

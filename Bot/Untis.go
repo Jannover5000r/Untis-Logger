@@ -3,6 +3,7 @@ package Untis
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -22,6 +23,17 @@ type Login struct {
 	Params Params `json:"params"`
 
 	Jsonrpc string `json:"jsonrpc"`
+}
+type LoginResponse struct {
+	Jsonrpc string      `json:"jsonrpc"`
+	ID      string      `json:"id"`
+	Result  Loginresult `json:"result"`
+}
+type Loginresult struct {
+	SessionID  string `json:"sessionId"`
+	PersonType int    `json:"personType"`
+	PersonID   int    `json:"personId"`
+	KlasseID   int    `json:"klasseId"`
 }
 
 var Url = "https://thalia.webuntis.com/WebUntis/jsonrpc.do?school=Mons_Tabor"
@@ -43,6 +55,7 @@ func Main() {
 
 	//getTeachers sends empty response -> commented out
 	//Teachers(cookies)
+	Timetable(cookies)
 }
 
 func Auth() ([]*http.Cookie, error) {
@@ -68,7 +81,25 @@ func Auth() ([]*http.Cookie, error) {
 	//log.Println("Set-Cookie headers:", LoginOut.Header["Set-Cookie"])
 	//loginRespBody, _ := io.ReadAll(LoginOut.Body)
 	//log.Println("Login response body:", string(loginRespBody))
-	log.Println("Login successful")
+	//log.Println("Login successful")
+	response, err := io.ReadAll(LoginOut.Body)
+	if err != nil {
+		log.Fatalf("Error reading response body: %v", err)
+	}
+	var Response LoginResponse
+	err = json.Unmarshal(response, &Response)
+	if err != nil {
+		log.Fatalf("Error unmarshaling response: %v", err)
+	}
+	data, err := json.MarshalIndent(Response.Result, "", "  ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = os.WriteFile("login.json", data, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return cookies, nil
 
 }
