@@ -1,1 +1,5 @@
 .env
+rooms.json
+classes.json
+subjects.json
+teachers.json
