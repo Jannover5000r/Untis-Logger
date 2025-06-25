@@ -71,6 +71,12 @@ type params struct {
 	Id        int    `json:"id"`
 	Type      int    `json:"type"`
 }
+type Loginresult struct {
+	SessionID  string `json:"sessionId"`
+	PersonType int    `json:"personType"`
+	PersonID   int    `json:"personId"`
+	KlasseID   int    `json:"klasseId"`
+}
 
 func ReadLoginResultFromFile(path string) (Loginresult, error) {
 	var result Loginresult
