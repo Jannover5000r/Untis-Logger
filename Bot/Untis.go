@@ -41,8 +41,10 @@ func Main() {
 
 	Subjects(cookies)
 
-	//getTeachers sends empty response -> commented out
-	//Teachers(cookies)
+	Timetable(cookies)
+
+	//getTeachers sends empty response
+	Teachers(cookies)
 }
 
 func Auth() ([]*http.Cookie, error) {

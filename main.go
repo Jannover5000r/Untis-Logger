@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
+	"sort"
+
+	//	"strings"
 	"syscall"
 	"time"
 	Untis "untislogger/Bot"
@@ -49,113 +51,76 @@ func init() {
 }
 
 func main() {
-	go Untis.Main() //starting API calls function
+	Untis.Main() //starting API calls function
+
 	//checking for time
-	log.Println("starting Timetable checks")
-	go checkTimetableChanges()
-	go notifyUpcomingLessons()
-	// Create a channel to receive OS signals
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	log.Println("Program is running. Press Ctrl+C to stop.")
-
+	Run()
 	// Block until we receive a signal
 	<-sigChan
 	log.Println("Shutting down...")
 }
 
-func loadTimetableFilled(path string) ([]NamedTimetableEntry, error) {
+/*
+#Main Run Function
+*/
+func Run() {
+	roomByStartTime, err := MapTimeToRoom("timetableFilled.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	now := time.Now().Format("15:04")
+	nextTime, room, found := NextRoomForTime(roomByStartTime, now)
+	if found {
+		fmt.Printf("Next time: %s, Room: %s\n", nextTime, room)
+	}
+}
+
+/*
+ */
+func NextRoomForTime(roomByStartTime map[string]string, current string) (string, string, bool) {
+	layout := "15:04"
+	now, err := time.Parse(layout, current)
+	if err != nil {
+		return "", "", false
+	}
+	var times []time.Time
+	timeToStr := make(map[time.Time]string)
+	for t := range roomByStartTime {
+		parsed, err := time.Parse(layout, t)
+		if err != nil {
+			continue
+		}
+		times = append(times, parsed)
+		timeToStr[parsed] = t
+	}
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	for _, t := range times {
+		if t.After(now) {
+			return timeToStr[t], roomByStartTime[timeToStr[t]], true
+		}
+	}
+	return "", "", false
+}
+func MapTimeToRoom(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var entries []NamedTimetableEntry
-	if err := json.Unmarshal(data, &entries); err != nil {
+	var table []NamedTimetableEntry
+	err = json.Unmarshal(data, &table)
+	if err != nil {
 		return nil, err
 	}
-	return entries, nil
-}
-
-func checkTimetableChanges() {
-	var lastTimetable []NamedTimetableEntry
-
-	for {
-		current, err := loadTimetableFilled("timetableFilled.json")
-		if err != nil {
-			log.Println("Error loading timetable:", err)
-			time.Sleep(time.Hour)
-			continue
-		}
-
-		// Compare with last timetable (simple string comparison)
-		log.Println("Checking if something changed")
-		if !equalTimetables(lastTimetable, current) && len(lastTimetable) > 0 {
-			// Find and send changes
-			changes := diffTimetables(lastTimetable, current)
-			oldMap := make(map[int]NamedTimetableEntry)
-			for _, e := range lastTimetable {
-				oldMap[e.ID] = e
-			}
-			for _, newLesson := range changes {
-				oldLesson, found := oldMap[newLesson.ID]
-				if found {
-					sendTimetableChangeWebhook(oldLesson, newLesson)
-				} else {
-					// If it's a new lesson, you can send a simple notification or skip
-					sendTimetableChangeWebhook(NamedTimetableEntry{}, newLesson)
-				}
-			}
-		}
-		lastTimetable = current
-		time.Sleep(time.Hour)
+	roomByStartTime := make(map[string]string)
+	for _, entry := range table {
+		roomByStartTime[entry.StartTime] = entry.Ro[0]
 	}
-}
-
-func equalTimetables(a, b []NamedTimetableEntry) bool {
-
-	aj, _ := json.Marshal(a)
-	bj, _ := json.Marshal(b)
-	return bytes.Equal(aj, bj)
-}
-
-func diffTimetables(old, new []NamedTimetableEntry) []NamedTimetableEntry {
-	// Simple diff: return lessons in new that are not in old
-	var diff []NamedTimetableEntry
-	oldMap := make(map[int]NamedTimetableEntry)
-	for _, e := range old {
-		oldMap[e.ID] = e
-	}
-	for _, e := range new {
-		if _, found := oldMap[e.ID]; !found {
-			diff = append(diff, e)
-		}
-	}
-	return diff
-}
-
-func notifyUpcomingLessons() {
-	log.Println("checking for new Lesson")
-	for {
-		entries, err := loadTimetableFilled("timetableFilled.json")
-		if err != nil {
-			log.Println("Error loading timetable:", err)
-			time.Sleep(time.Minute)
-			continue
-		}
-		now := time.Now()
-		for _, lesson := range entries {
-			// Parse date and time
-			lessonTime, err := time.Parse("02-01-2006 15:04", lesson.Date+" "+lesson.StartTime)
-			if err != nil {
-				continue
-			}
-			if lessonTime.Sub(now) > 4*time.Minute && lessonTime.Sub(now) < 6*time.Minute {
-				sendNextLessonWebhook(lesson)
-			}
-		}
-		time.Sleep(time.Minute)
-	}
+	return roomByStartTime, nil
 }
 
 // Discord webhook configuration
@@ -181,67 +146,19 @@ type Field struct {
 	Inline bool   `json:"inline"`
 }
 
-func sendTimetableChangeWebhook(oldLesson, newLesson NamedTimetableEntry) {
-	var changes []string
-	if !equalStringSlices(oldLesson.Su, newLesson.Su) {
-		changes = append(changes, fmt.Sprintf("Subject: %v → %v", strings.Join(oldLesson.Su, ", "), strings.Join(newLesson.Su, ", ")))
-	}
-	if !equalStringSlices(oldLesson.Ro, newLesson.Ro) {
-		changes = append(changes, fmt.Sprintf("Room: %v → %v", strings.Join(oldLesson.Ro, ", "), strings.Join(newLesson.Ro, ", ")))
-	}
-	if oldLesson.StartTime != newLesson.StartTime {
-		changes = append(changes, fmt.Sprintf("Time: %s → %s", oldLesson.StartTime, newLesson.StartTime))
-	}
-	if oldLesson.Code != newLesson.Code {
-		changes = append(changes, fmt.Sprintf("Code: %s → %s", oldLesson.Code, newLesson.Code))
-	}
-	if len(changes) == 0 {
-		changes = append(changes, "Other details changed")
-	}
-
-	content := fmt.Sprintf("**Timetable Change**\nLesson: %v\nTime: %s\nChanged: %s",
-		strings.Join(newLesson.Su, ", "),
-		newLesson.StartTime,
-		strings.Join(changes, "; "),
-	)
-
-	sendDiscordWebhook(content)
-}
-
-func sendNextLessonWebhook(lesson NamedTimetableEntry) {
-	content := fmt.Sprintf(
-		"**Next Lesson Reminder**\nLesson: %v\nTime: %s\nRoom: %v",
-		strings.Join(lesson.Su, ", "),
-		lesson.StartTime,
-		strings.Join(lesson.Ro, ", "),
-	)
-	sendDiscordWebhook(content)
-}
-
-func equalStringSlices(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
 func sendDiscordWebhook(ip string) {
 	log.Println("Sending Discord webhook notification...")
 
 	// Create a rich embed message
 	embed := Embed{
-		Title:       "🌐 Public IP Address Changed!",
-		Description: "Your public IP address has been updated.",
+		Title:       "A Lesson has changed ",
+		Description: "A lesson on your timetable has changed ",
 		Color:       3066993, // Green color
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Fields: []Field{
 			{
-				Name:   "New IP Address",
-				Value:  fmt.Sprintf("`%s`", ip),
+				Name: "New Lesson",
+				//	Value:  fmt.Sprintf("`%s`", ip),
 				Inline: true,
 			},
 			{
