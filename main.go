@@ -59,6 +59,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	log.Println("Program is running. Press Ctrl+C to stop.")
+	//Start logging
 	Run()
 	// Block until we receive a signal
 	<-sigChan
@@ -69,6 +70,11 @@ func main() {
 #Main Run Function
 */
 func Run() {
+	codeByStartTime, err := MapTimeToCode("timetableFilled.json")
+	if err != nil {
+		log.Println(err)
+	}
+
 	roomByStartTime, err := MapTimeToRoom("timetableFilled.json")
 	if err != nil {
 		log.Fatal(err)
@@ -76,8 +82,14 @@ func Run() {
 	now := time.Now().Format("15:04")
 	nextTime, room, found := NextRoomForTime(roomByStartTime, now)
 	if found {
-		fmt.Printf("Next time: %s, Room: %s\n", nextTime, room)
+		Status, found := NextCodeForTime(codeByStartTime, now)
+		if found {
+
+			fmt.Printf("Next time: %s, Room: %s\n", nextTime, room)
+			sendDiscordWebhook(room, nextTime, Status)
+		}
 	}
+
 }
 
 /*
@@ -106,6 +118,32 @@ func NextRoomForTime(roomByStartTime map[string]string, current string) (string,
 	}
 	return "", "", false
 }
+func NextCodeForTime(codeByStartTime map[string]string, current string) (string, bool) {
+
+	layout := "15:04"
+	now, err := time.Parse(layout, current)
+	if err != nil {
+		return "", false
+	}
+	var times []time.Time
+	timeToStr := make(map[time.Time]string)
+	for t := range codeByStartTime {
+		parsed, err := time.Parse(layout, t)
+		if err != nil {
+			continue
+		}
+		times = append(times, parsed)
+		timeToStr[parsed] = t
+	}
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	for _, t := range times {
+		if t.After(now) {
+			return codeByStartTime[timeToStr[t]], true
+		}
+	}
+	return "", false
+
+}
 func MapTimeToRoom(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -120,10 +158,46 @@ func MapTimeToRoom(path string) (map[string]string, error) {
 	for _, entry := range table {
 		roomByStartTime[entry.StartTime] = entry.Ro[0]
 	}
+	if roomByStartTime == nil {
+		return nil, nil
+	}
 	return roomByStartTime, nil
+}
+func MapTimeToCode(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var table []NamedTimetableEntry
+	err = json.Unmarshal(data, &table)
+	if err != nil {
+		return nil, err
+	}
+	codeByStartTime := make(map[string]string)
+	for _, entry := range table {
+		codeByStartTime[entry.StartTime] = entry.Code
+	}
+	return codeByStartTime, nil
+}
+func MapTimeToSubject(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var table []NamedTimetableEntry
+	err = json.Unmarshal(data, &table)
+	if err != nil {
+		return nil, err
+	}
+	subjectByStartTime := make(map[string]string)
+	for _, entry := range table {
+		subjectByStartTime[entry.StartTime] = entry.Su[0]
+	}
+	return subjectByStartTime, nil
 }
 
 // Discord webhook configuration
+
 var discordWebhookURL string // Webhook URL from environment variable
 
 // DiscordWebhookPayload represents the structure for Discord webhook messages
@@ -146,31 +220,40 @@ type Field struct {
 	Inline bool   `json:"inline"`
 }
 
-func sendDiscordWebhook(ip string) {
+func sendDiscordWebhook(room string, nextTime string, Status string) {
 	log.Println("Sending Discord webhook notification...")
-
 	// Create a rich embed message
-	embed := Embed{
-		Title:       "A Lesson has changed ",
-		Description: "A lesson on your timetable has changed ",
+	message := fmt.Sprintf(
+		"Room: %s\nStart-Time: %s\nStatus: %s",
+		room, nextTime, Status,
+	)
+	/*embed := Embed{
+		Title:       "Next Lesson ",
+		Description: "The next lesson is starting soon:  ",
 		Color:       3066993, // Green color
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Fields: []Field{
 			{
 				Name: "New Lesson",
 				//	Value:  fmt.Sprintf("`%s`", ip),
+				Value:  fmt.Sprintf("Room: %s", room),
 				Inline: true,
 			},
 			{
-				Name:   "Timestamp",
-				Value:  time.Now().Format("2006-01-02 15:04:05"),
+				Name:   "Start-Time",
+				Value:  fmt.Sprintf("Start time: %s", nextTime),
+				Inline: true,
+			},
+			{
+				Name:   "Status",
+				Value:  fmt.Sprintf("Status: %s", Status),
 				Inline: true,
 			},
 		},
 	}
-
+	*/
 	payload := DiscordWebhookPayload{
-		Embeds: []Embed{embed},
+		Content: message,
 	}
 
 	jsonData, err := json.Marshal(payload)
