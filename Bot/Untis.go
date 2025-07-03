@@ -3,6 +3,7 @@ package Untis
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -66,10 +67,11 @@ func Auth() ([]*http.Cookie, error) {
 
 	// Parse cookies from response
 	cookies := LoginOut.Cookies()
-	//log.Println("Received cookies:", cookies)
-	//log.Println("Set-Cookie headers:", LoginOut.Header["Set-Cookie"])
-	//loginRespBody, _ := io.ReadAll(LoginOut.Body)
-	//log.Println("Login response body:", string(loginRespBody))
+	log.Println("Received cookies:", cookies)
+	log.Println("Set-Cookie headers:", LoginOut.Header["Set-Cookie"])
+	loginRespBody, _ := io.ReadAll(LoginOut.Body)
+	log.Println("Login response body:", string(loginRespBody))
+
 	log.Println("Login successful")
 	return cookies, nil
 
