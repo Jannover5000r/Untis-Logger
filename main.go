@@ -256,9 +256,6 @@ func MapTimeToRoom(path string) (map[string]string, error) {
 			roomByStartTime[entry.StartTime] = entry.Ro[0]
 		}
 	}
-	if roomByStartTime == nil {
-		return nil, nil
-	}
 	return roomByStartTime, nil
 }
 func MapTimeToCode(path string) (map[string]string, error) {
