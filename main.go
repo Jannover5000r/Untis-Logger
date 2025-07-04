@@ -85,7 +85,7 @@ func scheduleTimetableUpdate() {
 	}
 
 	// Ticker for checking timetable changes every hour
-	hourTicker := time.NewTicker(1 * time.Hour)
+	hourTicker := time.NewTicker(1 * time.Minute)
 	go func() {
 		for range hourTicker.C {
 			Untis.Main()
