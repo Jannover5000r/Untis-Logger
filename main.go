@@ -14,6 +14,8 @@ import (
 	"time"
 	Untis "untislogger/Bot"
 
+	BotStart "untislogger/Botrun"
+
 	"github.com/joho/godotenv"
 )
 
@@ -52,6 +54,7 @@ func main() {
 	//Untis.Main() //starting API calls function| happens in schedule func
 	//Run()
 	//Starts logging the timetable for each new Lesson and logs changes
+	go BotStart.Start()
 	scheduleTimetableUpdate()
 
 	sigChan := make(chan os.Signal, 1)

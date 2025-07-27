@@ -54,7 +54,7 @@ func Main() {
 }
 
 func Auth() ([]*http.Cookie, error) {
-	l := Login{"2023-05-06 15:44:22.215292", "authenticate", Params{os.Getenv("UNTIS_USER"), os.Getenv("UNTIS_PASSWORD"), "WebUntis Test"}, "2.0"}
+	l := Login{"2023-05-06 15:44:22.215292", "authenticate", Params{USERS, Password, "WebUntis Test"}, "2.0"}
 	loginJSON, err := json.Marshal(l)
 	if err != nil {
 		log.Fatalf("Error marshaling login data: %v", err)
