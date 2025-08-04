@@ -4,5 +4,6 @@
 - UNTIS_USER
 - DISCORD_WEBHOOK_URL
 - DISCORD_BOT_TOKEN
+- ENC_KEY (generated via head -c 32 /dev/urandom | base64)
 
 # This is a project for me, issues will be resolved as i find the motivation to do that, improvements may follow in the future

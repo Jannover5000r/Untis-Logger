@@ -1,12 +1,20 @@
 package bot
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/joho/godotenv"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -30,6 +38,66 @@ var (
 	accountsFile = "accounts.json"
 )
 
+var encryptionKey []byte
+
+func init() {
+	godotenv.Load("/home/Jannik/Documents/Code/Go/Untis/Untis-Logger/.env")
+	keyStr := os.Getenv("ENC_KEY")
+	if keyStr == "" {
+		panic("ENC_KEY environment variable not set")
+	}
+	key, err := base64.StdEncoding.DecodeString(keyStr)
+	if err != nil {
+		panic("ENC_KEY is not valid base64")
+	}
+	if len(key) != 32 {
+		panic("ENC_KEY must be exactly 32 bytes after base64 decoding")
+	}
+	encryptionKey = key
+}
+
+func encrypt(text string) (string, error) {
+	block, err := aes.NewCipher(encryptionKey)
+	if err != nil {
+		return "", err
+	}
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, aesGCM.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	ciphertext := aesGCM.Seal(nonce, nonce, []byte(text), nil)
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+func decrypt(encrypted string) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(encrypted)
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(encryptionKey)
+	if err != nil {
+		return "", err
+	}
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonceSize := aesGCM.NonceSize()
+	if len(data) < nonceSize {
+		return "", errors.New("ciphertext too short")
+	}
+	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
+	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
+}
+
 // Save account info to JSON file (appends or updates)
 func saveAccount(userID, username, password string) error {
 	var accounts []Account
@@ -39,11 +107,24 @@ func saveAccount(userID, username, password string) error {
 		_ = json.Unmarshal(data, &accounts)
 	}
 
-	// Append new account
+	// Remove any account with the same userID
+	newAccounts := accounts[:0]
+	for _, acc := range accounts {
+		if acc.UserID != userID {
+			newAccounts = append(newAccounts, acc)
+		}
+	}
+	accounts = newAccounts
+
+	// Encrypt the password before saving
+	encPwd, err := encrypt(password)
+	if err != nil {
+		return err
+	}
 	accounts = append(accounts, Account{
 		UserID:   userID,
 		Username: username,
-		Password: password,
+		Password: encPwd,
 	})
 
 	// Save back to file
