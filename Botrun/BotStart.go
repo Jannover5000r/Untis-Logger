@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -13,6 +14,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -135,6 +137,63 @@ func saveAccount(userID, username, password string) error {
 	return os.WriteFile(accountsFile, newData, 0644)
 }
 
+// Helper functions for per-user timetable files
+func getTimetableFile(userID string) string {
+	return fmt.Sprintf("timetable_%s.json", userID)
+}
+
+func getTimetableFilledFile(userID string) string {
+	return fmt.Sprintf("timetableFilled_%s.json", userID)
+}
+
+// Send a Discord message mentioning the user
+func sendLessonNotification(s *discordgo.Session, userID, username, message string) {
+	// Send a DM to the user
+	channel, err := s.UserChannelCreate(userID)
+	if err != nil {
+		fmt.Println("Error creating DM channel:", err)
+		return
+	}
+	s.ChannelMessageSend(channel.ID, fmt.Sprintf("**%s**: %s", username, message))
+}
+
+// Check for timetable changes for a user and notify if changed
+func checkTimetableChangesForUser(user Account, decPwd string, s *discordgo.Session) {
+	timetableFilledFile := getTimetableFilledFile(user.UserID)
+
+	// Load previous timetable
+	prevData, _ := os.ReadFile(timetableFilledFile)
+
+	// TODO: Fetch new timetable for this user using user.Username and decrypted password
+	// For demonstration, we'll just copy prevData (replace this with real fetch logic!)
+	newData := prevData
+
+	// Compare and notify if changed
+	if !bytes.Equal(newData, prevData) {
+		sendLessonNotification(s, user.UserID, user.Username, "Your timetable has changed!")
+		os.WriteFile(timetableFilledFile, newData, 0644)
+	}
+}
+
+// Load all accounts from accounts.json
+func loadAllAccounts() []Account {
+	var accounts []Account
+	if data, err := os.ReadFile(accountsFile); err == nil && len(data) > 0 {
+		_ = json.Unmarshal(data, &accounts)
+	}
+	return accounts
+}
+
+// Scheduled check for all users
+func checkAllUsersTimetables(s *discordgo.Session) {
+	accounts := loadAllAccounts()
+	for _, user := range accounts {
+		decPwd, _ := decrypt(user.Password)
+		// You can use decPwd to fetch the timetable for this user
+		checkTimetableChangesForUser(user, decPwd, s)
+	}
+}
+
 func Start() {
 	token := os.Getenv("DISCORD_BOT_TOKEN")
 	if token == "" {
@@ -154,6 +213,14 @@ func Start() {
 		fmt.Println("error opening connection,", err)
 		return
 	}
+
+	// Schedule timetable checks every minute (or hour as needed)
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		for range ticker.C {
+			checkAllUsersTimetables(dg)
+		}
+	}()
 
 	fmt.Println("Bot is now running. Press CTRL+C to exit.")
 	// Wait for CTRL+C or other term signal to exit.

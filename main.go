@@ -79,8 +79,11 @@ func isScheduledTime(now time.Time) bool {
 }
 func scheduleTimetableUpdate() {
 	var prevData []byte
-	//run once
-	Untis.Main()
+	//declare user and pass
+	godotenv.Load(".env")
+	var password = os.Getenv("UNTIS_PASSWORD")
+	var user = os.Getenv("UNTIS_USER")
+	Untis.Main(user, password)
 	// Initial read of the file
 	data, err := os.ReadFile("timetableFilled.json")
 	if err == nil {
@@ -91,7 +94,7 @@ func scheduleTimetableUpdate() {
 	hourTicker := time.NewTicker(1 * time.Minute)
 	go func() {
 		for range hourTicker.C {
-			Untis.Main()
+			Untis.Main(user, password)
 			data, err := os.ReadFile("timetableFilled.json")
 			if err != nil {
 				log.Printf("Error reading timetable: %v", err)
@@ -108,7 +111,7 @@ func scheduleTimetableUpdate() {
 		now := time.Now()
 		if isScheduledTime(now) {
 			log.Println("Scheduled time reached, updating and running Run()")
-			Untis.Main()
+			Untis.Main(user, password)
 			log.Println("Updated now running Run()")
 			Run()
 			log.Println("Finished running Run")

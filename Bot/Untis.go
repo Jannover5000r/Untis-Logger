@@ -31,12 +31,13 @@ type LoginResponse struct {
 }
 
 var Url = "https://thalia.webuntis.com/WebUntis/jsonrpc.do?school=Mons_Tabor"
-var Password = os.Getenv("UNTIS_PASSWORD")
-var USERS = os.Getenv("UNTIS_USER")
 
-func Main() {
+//var Password = os.Getenv("UNTIS_PASSWORD")
+//var USERS = os.Getenv("UNTIS_USER")
+
+func Main(user, password string) {
 	godotenv.Load("../.env")
-	cookies, err := Auth()
+	cookies, err := Auth(user, password)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -53,8 +54,8 @@ func Main() {
 	Teachers(cookies)
 }
 
-func Auth() ([]*http.Cookie, error) {
-	l := Login{"2023-05-06 15:44:22.215292", "authenticate", Params{USERS, Password, "WebUntis Test"}, "2.0"}
+func Auth(user, password string) ([]*http.Cookie, error) {
+	l := Login{"2023-05-06 15:44:22.215292", "authenticate", Params{user, password, "WebUntis Test"}, "2.0"}
 	loginJSON, err := json.Marshal(l)
 	if err != nil {
 		log.Fatalf("Error marshaling login data: %v", err)
