@@ -4,6 +4,6 @@ classes.json
 subjects.json
 teachers.json
 login.json
-timetable.json
-timetableFilled.json
+timetable*.json
+timetableFilled*.json
 accounts.json
