@@ -13,4 +13,6 @@
 
 ### This bot is self hosted and will run correctly when doing "go run . " in the root folder of the project. Before usage add the .env file with the Credentials as mentioned above. When you run the Programm for the first time, all important files will be created automatically and the bot is ready to go. The user added via the fields UNTIS_USER and UNTIS_PASSWORD in the .env will be the one where the Webhook is sourced from and the other users will be send a DM after adding their account with the command.
 
+## In case your school is using a different timing for the Lessons than mine, you can change the times where you will be notified with the next room and Lesson for the day in **Line 71 in the main.go** file.
+
 # I am neither a representative of Untis Untis Baden-Württemberg GmbH nor a Developer in their team. This project is based on their API and is not affiliated with them.
