@@ -103,6 +103,8 @@ func scheduleTimetableUpdate() {
 				sendUpdateDiscordWebhook()
 				prevData = data
 			}
+			// Trigger bot notifications for all users
+			BotStart.NotifyAllUsers()
 		}
 	}()
 
@@ -330,35 +332,18 @@ type Field struct {
 func sendDiscordWebhook(subject string, room string, nextTime string, Status string) {
 	log.Println("Sending Discord webhook notification...")
 	// Create a rich embed message
-	message := fmt.Sprintf(
-		"Subject: %s\nRoom: %s\nStart-Time: %s\nStatus: %s",
-		subject, room, nextTime, Status,
-	)
-	/*embed := Embed{
-		Title:       "Next Lesson ",
-		Description: "The next lesson is starting soon:  ",
-		Color:       3066993, // Green color
-		Timestamp:   time.Now().Format(time.RFC3339),
-		Fields: []Field{
-			{
-				Name: "New Lesson",
-				//	Value:  fmt.Sprintf("`%s`", ip),
-				Value:  fmt.Sprintf("Room: %s", room),
-				Inline: true,
-			},
-			{
-				Name:   "Start-Time",
-				Value:  fmt.Sprintf("Start time: %s", nextTime),
-				Inline: true,
-			},
-			{
-				Name:   "Status",
-				Value:  fmt.Sprintf("Status: %s", Status),
-				Inline: true,
-			},
-		},
+	var message string
+	if Status != "" {
+		message = fmt.Sprintf(
+			"Subject: %s\nRoom: %s\nStart-Time: %s\nStatus: %s",
+			subject, room, nextTime, Status,
+		)
+	} else {
+		message = fmt.Sprintf(
+			"Subject: %s\nRoom: %s\nStart-Time: %s",
+			subject, room, nextTime,
+		)
 	}
-	*/
 	payload := DiscordWebhookPayload{
 		Content: message,
 	}

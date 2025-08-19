@@ -134,7 +134,21 @@ func saveAccount(userID, username, password string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(accountsFile, newData, 0644)
+	if err := os.WriteFile(accountsFile, newData, 0644); err != nil {
+		return err
+	}
+
+	// Ensure timetable files exist for this user
+	timetableFile := getTimetableFile(userID)
+	timetableFilledFile := getTimetableFilledFile(userID)
+	if _, err := os.Stat(timetableFile); os.IsNotExist(err) {
+		os.WriteFile(timetableFile, []byte("[]"), 0644)
+	}
+	if _, err := os.Stat(timetableFilledFile); os.IsNotExist(err) {
+		os.WriteFile(timetableFilledFile, []byte("[]"), 0644)
+	}
+
+	return nil
 }
 
 // Helper functions for per-user timetable files
@@ -194,6 +208,8 @@ func checkAllUsersTimetables(s *discordgo.Session) {
 	}
 }
 
+var DiscordSession *discordgo.Session
+
 func Start() {
 	token := os.Getenv("DISCORD_BOT_TOKEN")
 	if token == "" {
@@ -206,6 +222,7 @@ func Start() {
 		fmt.Println("error creating Discord session,", err)
 		return
 	}
+	DiscordSession = dg // Save session for use elsewhere
 
 	dg.AddHandler(messageCreate)
 	err = dg.Open()
@@ -229,6 +246,13 @@ func Start() {
 	<-sc
 
 	dg.Close()
+}
+
+// Expose this for main.go to trigger notifications
+func NotifyAllUsers() {
+	if DiscordSession != nil {
+		checkAllUsersTimetables(DiscordSession)
+	}
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
