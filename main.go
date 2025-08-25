@@ -34,6 +34,7 @@ type NamedTimetableEntry struct {
 
 // init and main//
 func init() {
+	godotenv.Load(".env")
 	err := godotenv.Load()
 	if err != nil {
 		log.Printf("Error loading .env file: %v", err)
@@ -51,6 +52,7 @@ func init() {
 }
 
 func main() {
+	godotenv.Load(".env")
 	//Untis.Main() //starting API calls function| happens in schedule func
 	//Run()
 	//Starts logging the timetable for each new Lesson and logs changes

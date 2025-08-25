@@ -43,7 +43,7 @@ var (
 var encryptionKey []byte
 
 func init() {
-	godotenv.Load("/home/Jannik/Documents/Code/Go/Untis/Untis-Logger/.env")
+	godotenv.Load(".env")
 	keyStr := os.Getenv("ENC_KEY")
 	if keyStr == "" {
 		panic("ENC_KEY environment variable not set")
