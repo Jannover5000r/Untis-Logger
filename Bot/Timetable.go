@@ -88,67 +88,73 @@ func ReadLoginResultFromFile(path string) (Loginresult, error) {
 	return result, err
 }
 
-func Timetable(cookies []*http.Cookie) {
-	loginResult, err := ReadLoginResultFromFile("login.json")
-	if err != nil {
-		log.Fatal(err)
+func Timetable(cookies []*http.Cookie, userID string) {
+	loginFile := "login.json"
+	if userID != "" {
+		loginFile = "login_" + userID + ".json"
 	}
+
+	loginResult, err := ReadLoginResultFromFile(loginFile)
+	if err != nil {
+		log.Printf("Could not read login result for user %s: %v", userID, err)
+		return
+	}
+
 	today := time.Now().Format("20060102")
 	g := getTimetable{"2023-05-06 15:44:22.215292", "getTimetable", params{today, today, loginResult.PersonID, loginResult.PersonType}, "2.0"}
-	TimetablesJson, err := json.Marshal(g)
+	timetablesJson, err := json.Marshal(g)
 	if err != nil {
-		log.Fatalf("Error marshaling login data: %v", err)
+		log.Printf("Error marshaling timetable request: %v", err)
 		return
 	}
-	timetable := bytes.NewReader(TimetablesJson)
+	timetable := bytes.NewReader(timetablesJson)
 
-	prompt, err := http.NewRequest("GET", Url, timetable)
+	req, err := http.NewRequest("GET", Url, timetable)
 	if err != nil {
-		log.Fatalf("Error creatingrequest: %v", err)
+		log.Printf("Error creating timetable request: %v", err)
 		return
 	}
-	//log.Println("prompt without extra header or cookie ", prompt)
-	//log.Println("Cookie: ", cookies)
-
-	prompt.Header.Set("Content-Type", "application/json")
-	prompt.Header.Set("User-Agent", "Webuntis Test")
-
+	req.Header.Set("Content-Type", "application/json")
 	for _, cookie := range cookies {
-		//if cookie.Name == "JSESSIONID" {
-		prompt.AddCookie(cookie)
-		//log.Printf("Added JSESSIONID cookie: %s=%s", cookie.Name, cookie.Value)
-		//}
+		req.AddCookie(cookie)
 	}
-	//log.Println("Request JSON:", string(TeachersJson))
-	out, err := http.DefaultClient.Do(prompt)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("Error during request: %v", err)
+		log.Printf("Error fetching timetable: %v", err)
 		return
 	}
-	defer out.Body.Close()
-	//log.Println(out.Status)
-	response, err := io.ReadAll(out.Body)
+	defer resp.Body.Close()
+
+	response, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error reading response body: %v", err)
+		log.Printf("Error reading timetable response: %v", err)
 		return
 	}
-	//responseString := string(response)
-	//log.Println("Repsonse ", responseString)
+
 	var Response TimetableResponse
-	err = json.Unmarshal(response, &Response)
-	if err != nil {
-		log.Fatalf("Error unmarshaling response: %v", err)
+	if err := json.Unmarshal(response, &Response); err != nil {
+		log.Printf("Error unmarshaling timetable response: %v", err)
+		return
 	}
+
 	data, err := json.MarshalIndent(Response.Result, "", "  ")
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Error marshaling timetable result: %v", err)
+		return
 	}
-	err = os.WriteFile("timetable.json", data, 0644)
-	if err != nil {
-		log.Fatal(err)
+
+	timetableFile := "timetable.json"
+	if userID != "" {
+		timetableFile = "timetable_" + userID + ".json"
 	}
-	log.Println("Updated Timetable")
-	setTimetable()
+	if err := os.WriteFile(timetableFile, data, 0644); err != nil {
+		log.Printf("Error writing timetable file: %v", err)
+		return
+	}
+
+	log.Printf("Updated timetable for user %s", userID)
+	setTimetable(userID)
 }
 
 func LoadIDMap(path string) (map[int]string, error) {
@@ -189,14 +195,18 @@ func formatDate(date int) string {
 	day := s[6:8]
 	return fmt.Sprintf("%s-%s-%s", day, month, year)
 }
-func setTimetable() {
+func setTimetable(userID string) {
 	subjects, _ := LoadIDMap("subjects.json")
 	rooms, _ := LoadIDMap("rooms.json")
 	classes, _ := LoadIDMap("classes.json")
-	timetable, _ := LoadTimetable("timetable.json")
+
+	timetableFile := "timetable.json"
+	if userID != "" {
+		timetableFile = "timetable_" + userID + ".json"
+	}
+	timetable, _ := LoadTimetable(timetableFile)
 
 	var namedTimetable []NamedTimetableEntry
-
 	for _, lesson := range timetable {
 		var klNames, suNames, roNames []string
 		for _, kl := range lesson.Kl {
@@ -224,11 +234,17 @@ func setTimetable() {
 
 	data, err := json.MarshalIndent(namedTimetable, "", "  ")
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Error marshaling named timetable: %v", err)
+		return
 	}
-	err = os.WriteFile("timetableFilled.json", data, 0644)
-	if err != nil {
-		log.Fatal(err)
+
+	timetableFilledFile := "timetableFilled.json"
+	if userID != "" {
+		timetableFilledFile = "timetableFilled_" + userID + ".json"
 	}
-	log.Println("Filled Timetable")
+	if err := os.WriteFile(timetableFilledFile, data, 0644); err != nil {
+		log.Printf("Error writing timetableFilled file: %v", err)
+		return
+	}
+	log.Printf("Filled timetable for user %s", userID)
 }

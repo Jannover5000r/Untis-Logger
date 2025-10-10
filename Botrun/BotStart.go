@@ -248,10 +248,60 @@ func Start() {
 	dg.Close()
 }
 
+// DecryptedAccount holds user information with a decrypted password.
+type DecryptedAccount struct {
+	UserID            string
+	Username          string
+	DecryptedPassword string
+}
+
+// LoadAndDecryptAccounts loads all accounts from the JSON file and decrypts their passwords.
+func LoadAndDecryptAccounts() ([]DecryptedAccount, error) {
+	accounts := loadAllAccounts()
+	decryptedAccounts := make([]DecryptedAccount, 0, len(accounts))
+
+	for _, acc := range accounts {
+		decPwd, err := decrypt(acc.Password)
+		if err != nil {
+			// Log the error but continue with other accounts
+			fmt.Printf("Error decrypting password for user %s: %v\n", acc.UserID, err)
+			continue
+		}
+		decryptedAccounts = append(decryptedAccounts, DecryptedAccount{
+			UserID:            acc.UserID,
+			Username:          acc.Username,
+			DecryptedPassword: decPwd,
+		})
+	}
+
+	return decryptedAccounts, nil
+}
+
 // Expose this for main.go to trigger notifications
 func NotifyAllUsers() {
 	if DiscordSession != nil {
 		checkAllUsersTimetables(DiscordSession)
+	}
+}
+
+// SendDM sends a direct message to a user.
+func SendDM(userID, message string) {
+	if DiscordSession == nil {
+		fmt.Println("Discord session not initialized, cannot send DM.")
+		return
+	}
+	// Avoid sending messages to the "default" user placeholder
+	if userID == "default" {
+		return
+	}
+	channel, err := DiscordSession.UserChannelCreate(userID)
+	if err != nil {
+		fmt.Printf("Error creating DM channel for %s: %v\n", userID, err)
+		return
+	}
+	_, err = DiscordSession.ChannelMessageSend(channel.ID, message)
+	if err != nil {
+		fmt.Printf("Error sending DM to %s: %v\n", userID, err)
 	}
 }
 
