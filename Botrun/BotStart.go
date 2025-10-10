@@ -248,11 +248,111 @@ func Start() {
 	dg.Close()
 }
 
+// DecryptedAccount holds user information with a decrypted password.
+type DecryptedAccount struct {
+	UserID            string
+	Username          string
+	DecryptedPassword string
+}
+
+// LoadAndDecryptAccounts loads all accounts from the JSON file and decrypts their passwords.
+func LoadAndDecryptAccounts() ([]DecryptedAccount, error) {
+	accounts := loadAllAccounts()
+	decryptedAccounts := make([]DecryptedAccount, 0, len(accounts))
+
+	for _, acc := range accounts {
+		decPwd, err := decrypt(acc.Password)
+		if err != nil {
+			// Log the error but continue with other accounts
+			fmt.Printf("Error decrypting password for user %s: %v\n", acc.UserID, err)
+			continue
+		}
+		decryptedAccounts = append(decryptedAccounts, DecryptedAccount{
+			UserID:            acc.UserID,
+			Username:          acc.Username,
+			DecryptedPassword: decPwd,
+		})
+	}
+
+	return decryptedAccounts, nil
+}
+
 // Expose this for main.go to trigger notifications
 func NotifyAllUsers() {
 	if DiscordSession != nil {
 		checkAllUsersTimetables(DiscordSession)
 	}
+}
+
+// SendDM sends a direct message to a user.
+func SendDM(userID, message string) {
+	if DiscordSession == nil {
+		fmt.Println("Discord session not initialized, cannot send DM.")
+		return
+	}
+	// Avoid sending messages to the "default" user placeholder
+	if userID == "default" {
+		return
+	}
+	channel, err := DiscordSession.UserChannelCreate(userID)
+	if err != nil {
+		fmt.Printf("Error creating DM channel for %s: %v\n", userID, err)
+		return
+	}
+	_, err = DiscordSession.ChannelMessageSend(channel.ID, message)
+	if err != nil {
+		fmt.Printf("Error sending DM to %s: %v\n", userID, err)
+	}
+}
+
+// Delete account and associated files for a given userID
+func deleteAccount(userID string) error {
+	var accounts []Account
+
+	// Load existing accounts
+	data, err := os.ReadFile(accountsFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // No accounts file means nothing to delete
+		}
+		return err
+	}
+
+	if len(data) > 0 {
+		if err := json.Unmarshal(data, &accounts); err != nil {
+			return err
+		}
+	}
+
+	// Filter out the account with matching userID
+	newAccounts := accounts[:0]
+	found := false
+	for _, acc := range accounts {
+		if acc.UserID != userID {
+			newAccounts = append(newAccounts, acc)
+		} else {
+			found = true
+		}
+	}
+
+	if !found {
+		return errors.New("account not found")
+	}
+
+	// Save remaining accounts back to file
+	newData, err := json.MarshalIndent(newAccounts, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(accountsFile, newData, 0644); err != nil {
+		return err
+	}
+
+	// Delete associated timetable files
+	os.Remove(getTimetableFile(userID))
+	os.Remove(getTimetableFilledFile(userID))
+
+	return nil
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -276,6 +376,29 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		stateMutex.Lock()
 		userStates[m.Author.ID] = &UserState{Step: "awaiting_username"}
 		stateMutex.Unlock()
+		return
+	}
+
+	// Handle "!deleteaccount" and "!removeaccount" commands
+	if m.GuildID != "" && (m.Content == "!deleteaccount" || m.Content == "!removeaccount") {
+		// Delete the command message for privacy
+		_ = s.ChannelMessageDelete(m.ChannelID, m.ID)
+
+		err := deleteAccount(m.Author.ID)
+		if err != nil {
+			// Create DM channel to notify of error
+			channel, err := s.UserChannelCreate(m.Author.ID)
+			if err == nil {
+				s.ChannelMessageSend(channel.ID, "Failed to delete your account: "+err.Error())
+			}
+			return
+		}
+
+		// Notify success via DM
+		channel, err := s.UserChannelCreate(m.Author.ID)
+		if err == nil {
+			s.ChannelMessageSend(channel.ID, "Your account has been successfully deleted.")
+		}
 		return
 	}
 

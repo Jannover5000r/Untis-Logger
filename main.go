@@ -80,45 +80,74 @@ func isScheduledTime(now time.Time) bool {
 	return false
 }
 func scheduleTimetableUpdate() {
-	var prevData []byte
-	//declare user and pass
-	godotenv.Load(".env")
-	var password = os.Getenv("UNTIS_PASSWORD")
-	var user = os.Getenv("UNTIS_USER")
-	Untis.Main(user, password)
-	// Initial read of the file
-	data, err := os.ReadFile("timetableFilled.json")
-	if err == nil {
-		prevData = data
+	prevData := make(map[string][]byte)
+
+	// Function to update all users
+	updateAllUsers := func() {
+		// Load all registered users
+		accounts, err := BotStart.LoadAndDecryptAccounts()
+		if err != nil {
+			log.Printf("Error loading accounts: %v", err)
+		}
+
+		// Add the default user from .env
+		defaultUser := os.Getenv("UNTIS_USER")
+		defaultPassword := os.Getenv("UNTIS_PASSWORD")
+		if defaultUser != "" && defaultPassword != "" {
+			accounts = append(accounts, BotStart.DecryptedAccount{
+				UserID:            "default",
+				Username:          defaultUser,
+				DecryptedPassword: defaultPassword,
+			})
+		}
+
+		// Process each user
+		for _, acc := range accounts {
+			// Fetch the latest timetable
+			Untis.Main(acc.Username, acc.DecryptedPassword, acc.UserID)
+
+			// Check for changes
+			timetableFile := fmt.Sprintf("timetableFilled_%s.json", acc.UserID)
+			if acc.UserID == "default" {
+				timetableFile = "timetableFilled.json"
+			}
+			data, err := os.ReadFile(timetableFile)
+			if err != nil {
+				log.Printf("Error reading timetable for user %s: %v", acc.Username, err)
+				continue
+			}
+
+			if prev, ok := prevData[acc.UserID]; ok && !bytes.Equal(data, prev) {
+				log.Printf("Timetable has changed for user %s.", acc.Username)
+				BotStart.SendDM(acc.UserID, "Your timetable has changed!")
+			}
+			prevData[acc.UserID] = data
+		}
 	}
 
-	// Ticker for checking timetable changes every hour
-	hourTicker := time.NewTicker(1 * time.Minute)
+	// Initial update
+	updateAllUsers()
+
+	// Ticker for periodic updates
+	hourTicker := time.NewTicker(1 * time.Minute) // For testing, 1 minute. Change to 1 * time.Hour for production.
 	go func() {
 		for range hourTicker.C {
-			Untis.Main(user, password)
-			data, err := os.ReadFile("timetableFilled.json")
-			if err != nil {
-				log.Printf("Error reading timetable: %v", err)
-			} else if !bytes.Equal(data, prevData) {
-				log.Println("Timetable file has changed.")
-				sendUpdateDiscordWebhook()
-				prevData = data
-			}
-			// Trigger bot notifications for all users
-			BotStart.NotifyAllUsers()
+			updateAllUsers()
 		}
 	}()
 
-	// Ticker for checking scheduled times every minute
+	// Ticker for scheduled lesson notifications
 	startMinuteTicker(func() {
 		now := time.Now()
 		if isScheduledTime(now) {
-			log.Println("Scheduled time reached, updating and running Run()")
-			Untis.Main(user, password)
-			log.Println("Updated now running Run()")
-			Run()
-			log.Println("Finished running Run")
+			log.Println("Scheduled time reached, running notifications...")
+			accounts, _ := BotStart.LoadAndDecryptAccounts()
+			// Also notify the default user
+			accounts = append(accounts, BotStart.DecryptedAccount{UserID: "default"})
+			for _, acc := range accounts {
+				Run(acc.UserID)
+			}
+			log.Println("Finished running notifications.")
 		}
 	})
 }
@@ -136,42 +165,49 @@ func startMinuteTicker(f func()) {
 	}()
 }
 
-/*
-#Main Run Function
-*/
-func Run() {
-	log.Println("Sending next Lesson")
-	codeByStartTime, err := MapTimeToCode("timetableFilled.json")
-	if err != nil {
-		log.Println(err)
+func Run(userID string) {
+	timetableFile := "timetableFilled.json"
+	if userID != "default" {
+		timetableFile = fmt.Sprintf("timetableFilled_%s.json", userID)
+	}
+	log.Printf("Sending next lesson for user %s", userID)
+
+	// Check if the timetable file exists
+	if _, err := os.Stat(timetableFile); os.IsNotExist(err) {
+		log.Printf("Timetable file %s not found for user %s.", timetableFile, userID)
+		return
 	}
 
-	roomByStartTime, err := MapTimeToRoom("timetableFilled.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-	subjectByStartTime, err := MapTimeToSubject("timetableFilled.json")
-	if err != nil {
-		log.Fatal(err)
-	}
+	codeByStartTime, _ := MapTimeToCode(timetableFile)
+	roomByStartTime, _ := MapTimeToRoom(timetableFile)
+	subjectByStartTime, _ := MapTimeToSubject(timetableFile)
+
 	now := time.Now().Format("15:04")
-	nextTime, room, found := NextRoomForTime(roomByStartTime, now)
-	if found {
-		log.Println("found Room")
-		Subject, found := NextSubjectForTime(subjectByStartTime, now)
-		if found {
-			log.Println("Found Subject")
-			Status, found := NextCodeForTime(codeByStartTime, now)
-			if found {
-				log.Println("Found Status")
-				fmt.Printf("Next time: %s, Room: %s\n", nextTime, room)
-				sendDiscordWebhook(Subject, room, nextTime, Status)
-			} else {
-				sendDiscordWebhook(Subject, room, nextTime, "")
-			}
-		}
+	nextTime, room, foundRoom := NextRoomForTime(roomByStartTime, now)
+	if !foundRoom {
+		return // No upcoming lessons
 	}
 
+	subject, foundSubject := NextSubjectForTime(subjectByStartTime, now)
+	if !foundSubject {
+		return // Should not happen if room was found
+	}
+
+	status, _ := NextCodeForTime(codeByStartTime, now)
+
+	var message string
+	if status != "" {
+		message = fmt.Sprintf("Next lesson: **%s** in room **%s** at **%s**. Status: **%s**", subject, room, nextTime, status)
+	} else {
+		message = fmt.Sprintf("Next lesson: **%s** in room **%s** at **%s**.", subject, room, nextTime)
+	}
+
+	if userID == "default" {
+		// The default user still sends to the webhook
+		sendDiscordWebhook(subject, room, nextTime, status)
+	} else {
+		BotStart.SendDM(userID, message)
+	}
 }
 
 /*
