@@ -305,6 +305,56 @@ func SendDM(userID, message string) {
 	}
 }
 
+// Delete account and associated files for a given userID
+func deleteAccount(userID string) error {
+	var accounts []Account
+
+	// Load existing accounts
+	data, err := os.ReadFile(accountsFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // No accounts file means nothing to delete
+		}
+		return err
+	}
+
+	if len(data) > 0 {
+		if err := json.Unmarshal(data, &accounts); err != nil {
+			return err
+		}
+	}
+
+	// Filter out the account with matching userID
+	newAccounts := accounts[:0]
+	found := false
+	for _, acc := range accounts {
+		if acc.UserID != userID {
+			newAccounts = append(newAccounts, acc)
+		} else {
+			found = true
+		}
+	}
+
+	if !found {
+		return errors.New("account not found")
+	}
+
+	// Save remaining accounts back to file
+	newData, err := json.MarshalIndent(newAccounts, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(accountsFile, newData, 0644); err != nil {
+		return err
+	}
+
+	// Delete associated timetable files
+	os.Remove(getTimetableFile(userID))
+	os.Remove(getTimetableFilledFile(userID))
+
+	return nil
+}
+
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Ignore bot's own messages
 	if m.Author.ID == s.State.User.ID {
@@ -326,6 +376,29 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		stateMutex.Lock()
 		userStates[m.Author.ID] = &UserState{Step: "awaiting_username"}
 		stateMutex.Unlock()
+		return
+	}
+
+	// Handle "!deleteaccount" and "!removeaccount" commands
+	if m.GuildID != "" && (m.Content == "!deleteaccount" || m.Content == "!removeaccount") {
+		// Delete the command message for privacy
+		_ = s.ChannelMessageDelete(m.ChannelID, m.ID)
+
+		err := deleteAccount(m.Author.ID)
+		if err != nil {
+			// Create DM channel to notify of error
+			channel, err := s.UserChannelCreate(m.Author.ID)
+			if err == nil {
+				s.ChannelMessageSend(channel.ID, "Failed to delete your account: "+err.Error())
+			}
+			return
+		}
+
+		// Notify success via DM
+		channel, err := s.UserChannelCreate(m.Author.ID)
+		if err == nil {
+			s.ChannelMessageSend(channel.ID, "Your account has been successfully deleted.")
+		}
 		return
 	}
 
