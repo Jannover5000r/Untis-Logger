@@ -35,70 +35,59 @@ var Url = "https://thalia.webuntis.com/WebUntis/jsonrpc.do?school=Mons_Tabor"
 //var Password = os.Getenv("UNTIS_PASSWORD")
 //var USERS = os.Getenv("UNTIS_USER")
 
-func Main(user, password string) {
+func Main(user, password, userID string) {
 	godotenv.Load("../.env")
-	cookies, err := Auth(user, password)
+	cookies, err := Auth(user, password, userID)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Authentication failed for user %s: %v", user, err)
 		return
 	}
 	Rooms(cookies)
-
 	Classes(cookies)
-
 	Subjects(cookies)
-
-	Timetable(cookies)
-
-	//getTeachers sends empty response
+	Timetable(cookies, userID)
 	Teachers(cookies)
 }
 
-func Auth(user, password string) ([]*http.Cookie, error) {
+func Auth(user, password, userID string) ([]*http.Cookie, error) {
 	l := Login{"2023-05-06 15:44:22.215292", "authenticate", Params{user, password, "WebUntis Test"}, "2.0"}
 	loginJSON, err := json.Marshal(l)
 	if err != nil {
-		log.Fatalf("Error marshaling login data: %v", err)
 		return nil, err
 	}
 	login := bytes.NewReader(loginJSON)
 
-	//log.Println("Run")
 	LoginOut, err := http.Post(Url, "application/json", login)
 	if err != nil {
-		log.Printf("Error during authentication: %v", err)
 		return nil, err
 	}
 	defer LoginOut.Body.Close()
 
-	// Parse cookies from response
 	cookies := LoginOut.Cookies()
-	//log.Println("Received cookies:", cookies)
-	//log.Println("Set-Cookie headers:", LoginOut.Header["Set-Cookie"])
-	//loginRespBody, _ := io.ReadAll(LoginOut.Body)
-	//log.Println("Login response body:", string(loginRespBody))
+	log.Printf("Login successful for user: %s", user)
 
-	log.Println("Login successful")
-
-	//log.Println("Login successful")
 	response, err := io.ReadAll(LoginOut.Body)
 	if err != nil {
-		log.Fatalf("Error reading response body: %v", err)
+		return nil, err
 	}
+
 	var Response LoginResponse
-	err = json.Unmarshal(response, &Response)
-	if err != nil {
-		log.Fatalf("Error unmarshaling response: %v", err)
+	if err := json.Unmarshal(response, &Response); err != nil {
+		return nil, err
 	}
+
 	data, err := json.MarshalIndent(Response.Result, "", "  ")
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	err = os.WriteFile("login.json", data, 0644)
-	if err != nil {
-		log.Fatal(err)
+
+	loginFile := "login.json"
+	if userID != "" {
+		loginFile = "login_" + userID + ".json"
+	}
+	if err := os.WriteFile(loginFile, data, 0644); err != nil {
+		return nil, err
 	}
 
 	return cookies, nil
-
 }
