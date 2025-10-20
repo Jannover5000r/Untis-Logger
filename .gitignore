@@ -8,3 +8,5 @@ timetable*.json
 timetableFilled*.json
 accounts.json
 login_*.json
+untislogger
+untislogger*

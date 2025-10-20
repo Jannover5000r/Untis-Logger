@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"untislogger/Untis"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -178,14 +179,24 @@ func checkTimetableChangesForUser(user Account, decPwd string, s *discordgo.Sess
 	// Load previous timetable
 	prevData, _ := os.ReadFile(timetableFilledFile)
 
-	// TODO: Fetch new timetable for this user using user.Username and decrypted password
-	// For demonstration, we'll just copy prevData (replace this with real fetch logic!)
-	newData := prevData
+	// Fetch new timetable for this user
+	cookies, err := Untis.Auth(user.Username, decPwd, user.UserID)
+	if err != nil {
+		fmt.Printf("Error authenticating user %s: %v\n", user.Username, err)
+		return
+	}
+	Untis.Timetable(cookies, user.UserID)
+
+	// Load the newly fetched timetable data
+	newData, err := os.ReadFile(timetableFilledFile)
+	if err != nil {
+		fmt.Printf("Error reading new timetable for user %s: %v\n", user.Username, err)
+		return
+	}
 
 	// Compare and notify if changed
 	if !bytes.Equal(newData, prevData) {
 		sendLessonNotification(s, user.UserID, user.Username, "Your timetable has changed!")
-		os.WriteFile(timetableFilledFile, newData, 0644)
 	}
 }
 

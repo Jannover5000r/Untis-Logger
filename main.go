@@ -12,7 +12,7 @@ import (
 	"sort"
 	"syscall"
 	"time"
-	Untis "untislogger/Bot"
+	Untis "untislogger/Untis"
 
 	BotStart "untislogger/Botrun"
 
