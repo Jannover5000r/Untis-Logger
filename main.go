@@ -34,8 +34,7 @@ type NamedTimetableEntry struct {
 
 // init and main//
 func init() {
-	godotenv.Load(".env")
-	err := godotenv.Load()
+	err := godotenv.Load(".env")
 	if err != nil {
 		log.Printf("Error loading .env file: %v", err)
 	}
@@ -68,16 +67,6 @@ func main() {
 	// Block until we receive a signal
 	<-sigChan
 	log.Println("Shutting down...")
-}
-func isScheduledTime(now time.Time) bool {
-	scheduled := []string{"07:45", "08:35", "09:35", "10:25", "11:25", "12:15", "13:45", "14:25"}
-	current := now.Format("15:04")
-	for _, t := range scheduled {
-		if t == current {
-			return true
-		}
-	}
-	return false
 }
 func scheduleTimetableUpdate() {
 	prevData := make(map[string][]byte)
@@ -135,42 +124,36 @@ func scheduleTimetableUpdate() {
 			updateAllUsers()
 		}
 	}()
-
-	// Ticker for scheduled lesson notifications
-	startMinuteTicker(func() {
-		now := time.Now()
-		if isScheduledTime(now) {
-			log.Println("Scheduled time reached, running notifications...")
-			accounts, _ := BotStart.LoadAndDecryptAccounts()
-			// Also notify the default user
-			accounts = append(accounts, BotStart.DecryptedAccount{UserID: "default"})
-			for _, acc := range accounts {
-				Run(acc.UserID)
-			}
-			log.Println("Finished running notifications.")
-		}
-	})
-}
-
-func startMinuteTicker(f func()) {
-	now := time.Now()
-	next := now.Truncate(time.Minute).Add(time.Minute)
-	time.Sleep(time.Until(next))
+	// New robust scheduler
 	ticker := time.NewTicker(1 * time.Minute)
 	go func() {
-		for {
-			f()
-			<-ticker.C
+		for range ticker.C {
+			now := time.Now()
+			currentTime := now.Format("15:04")
+			scheduledTimes := []string{"07:45", "08:35", "09:35", "10:25", "11:25", "12:15", "13:45", "14:25"}
+
+			for _, t := range scheduledTimes {
+				if t == currentTime {
+					log.Println("Scheduled time reached, running notifications...")
+					accounts, _ := BotStart.LoadAndDecryptAccounts()
+					// Also notify the default user
+					accounts = append(accounts, BotStart.DecryptedAccount{UserID: "default"})
+					for _, acc := range accounts {
+						Run(acc.UserID, t)
+					}
+					log.Println("Finished running notifications.")
+				}
+			}
 		}
 	}()
 }
 
-func Run(userID string) {
+func Run(userID string, forTime string) {
 	timetableFile := "timetableFilled.json"
 	if userID != "default" {
 		timetableFile = fmt.Sprintf("timetableFilled_%s.json", userID)
 	}
-	log.Printf("Sending next lesson for user %s", userID)
+	log.Printf("Sending next lesson for user %s for time %s", userID, forTime)
 
 	// Check if the timetable file exists
 	if _, err := os.Stat(timetableFile); os.IsNotExist(err) {
@@ -182,18 +165,18 @@ func Run(userID string) {
 	roomByStartTime, _ := MapTimeToRoom(timetableFile)
 	subjectByStartTime, _ := MapTimeToSubject(timetableFile)
 
-	now := time.Now().Format("15:04")
-	nextTime, room, foundRoom := NextRoomForTime(roomByStartTime, now)
+	nextTime, room, foundRoom := NextRoomForTime(roomByStartTime, forTime)
 	if !foundRoom {
+		log.Printf("No upcoming lessons found for user %s at %s.", userID, forTime)
 		return // No upcoming lessons
 	}
 
-	subject, foundSubject := NextSubjectForTime(subjectByStartTime, now)
+	subject, foundSubject := NextSubjectForTime(subjectByStartTime, forTime)
 	if !foundSubject {
 		return // Should not happen if room was found
 	}
 
-	status, _ := NextCodeForTime(codeByStartTime, now)
+	status, _ := NextCodeForTime(codeByStartTime, forTime)
 
 	var message string
 	if status != "" {
@@ -230,7 +213,7 @@ func NextRoomForTime(roomByStartTime map[string]string, current string) (string,
 	}
 	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
 	for _, t := range times {
-		if t.After(now) {
+		if t.After(now) || t.Equal(now) {
 			return timeToStr[t], roomByStartTime[timeToStr[t]], true
 		}
 	}
@@ -254,7 +237,7 @@ func NextSubjectForTime(subjectByStartTime map[string]string, current string) (s
 	}
 	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
 	for _, t := range times {
-		if t.After(now) {
+		if t.After(now) || t.Equal(now) {
 			return subjectByStartTime[timeToStr[t]], true
 		}
 	}
@@ -279,7 +262,7 @@ func NextCodeForTime(codeByStartTime map[string]string, current string) (string,
 	}
 	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
 	for _, t := range times {
-		if t.After(now) {
+		if t.After(now) || t.Equal(now) {
 			return codeByStartTime[timeToStr[t]], true
 		}
 	}
@@ -368,7 +351,11 @@ type Field struct {
 }
 
 func sendDiscordWebhook(subject string, room string, nextTime string, Status string) {
-	log.Println("Sending Discord webhook notification...")
+	if discordWebhookURL == "" {
+		log.Println("Discord webhook URL not configured, skipping notification.")
+		return
+	}
+	log.Println("Attempting to send Discord webhook notification...")
 	// Create a rich embed message
 	var message string
 	if Status != "" {
