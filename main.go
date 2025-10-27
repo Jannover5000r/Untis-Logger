@@ -12,6 +12,7 @@ import (
 	"sort"
 	"syscall"
 	"time"
+
 	Untis "untislogger/Untis"
 
 	BotStart "untislogger/Botrun"
@@ -52,9 +53,9 @@ func init() {
 
 func main() {
 	godotenv.Load(".env")
-	//Untis.Main() //starting API calls function| happens in schedule func
-	//Run()
-	//Starts logging the timetable for each new Lesson and logs changes
+	// Untis.Main() //starting API calls function| happens in schedule func
+	// Run()
+	// Starts logging the timetable for each new Lesson and logs changes
 	go BotStart.Start()
 	scheduleTimetableUpdate()
 
@@ -62,12 +63,13 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	log.Println("Program is running. Press Ctrl+C to stop.")
-	//Start logging
-	//Run()
+	// Start logging
+	// Run()
 	// Block until we receive a signal
 	<-sigChan
 	log.Println("Shutting down...")
 }
+
 func scheduleTimetableUpdate() {
 	prevData := make(map[string][]byte)
 
@@ -219,6 +221,7 @@ func NextRoomForTime(roomByStartTime map[string]string, current string) (string,
 	}
 	return "", "", false
 }
+
 func NextSubjectForTime(subjectByStartTime map[string]string, current string) (string, bool) {
 	layout := "15:04"
 	now, err := time.Parse(layout, current)
@@ -243,8 +246,8 @@ func NextSubjectForTime(subjectByStartTime map[string]string, current string) (s
 	}
 	return "", false
 }
-func NextCodeForTime(codeByStartTime map[string]string, current string) (string, bool) {
 
+func NextCodeForTime(codeByStartTime map[string]string, current string) (string, bool) {
 	layout := "15:04"
 	now, err := time.Parse(layout, current)
 	if err != nil {
@@ -267,8 +270,8 @@ func NextCodeForTime(codeByStartTime map[string]string, current string) (string,
 		}
 	}
 	return "", false
-
 }
+
 func MapTimeToRoom(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -287,6 +290,7 @@ func MapTimeToRoom(path string) (map[string]string, error) {
 	}
 	return roomByStartTime, nil
 }
+
 func MapTimeToCode(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -307,6 +311,7 @@ func MapTimeToCode(path string) (map[string]string, error) {
 	}
 	return codeByStartTime, nil
 }
+
 func MapTimeToSubject(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
