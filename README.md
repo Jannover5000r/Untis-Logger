@@ -9,8 +9,8 @@
 - ENC_KEY (generated via head -c 32 /dev/urandom | base64)
 - URL
 
-The URL portion should be as follows: "<https://thalia.webuntis.com/WebUntis/jsonrpc.do?school=[nameOfYourSchool>]"
-the nameOfYourSchool can be found by accessing your WebUntis page in the browser. The link should be "<https://thalia.webuntis.com/WebUntis/?school=[nameOfYourSchool]#/basic/login>" for the loginPage
+The URL portion should be as follows: "https://thalia.webuntis.com/WebUntis/jsonrpc.do?school=[nameOfYourSchool]"
+the nameOfYourSchool can be found by accessing your WebUntis page in the browser. The link should be "https://thalia.webuntis.com/WebUntis/?school=[nameOfYourSchool]#/basic/login" for the loginPage
 
 # This is a project for me, issues will be resolved as i find the motivation to do so, improvements may follow in the future
 
