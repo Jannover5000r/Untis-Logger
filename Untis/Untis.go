@@ -30,11 +30,10 @@ type LoginResponse struct {
 	Result  Loginresult `json:"result"`
 }
 
-var Url = "https://thalia.webuntis.com/WebUntis/jsonrpc.do?school=Mons_Tabor"
+var Url = os.Getenv("URL")
 
-//var Password = os.Getenv("UNTIS_PASSWORD")
-//var USERS = os.Getenv("UNTIS_USER")
-
+// var Password = os.Getenv("UNTIS_PASSWORD")
+// var USERS = os.Getenv("UNTIS_USER")
 func Main(user, password, userID string) {
 	godotenv.Load("../.env")
 	cookies, err := Auth(user, password, userID)
@@ -85,7 +84,7 @@ func Auth(user, password, userID string) ([]*http.Cookie, error) {
 	if userID != "" {
 		loginFile = "login_" + userID + ".json"
 	}
-	if err := os.WriteFile(loginFile, data, 0644); err != nil {
+	if err := os.WriteFile(loginFile, data, 0o644); err != nil {
 		return nil, err
 	}
 
