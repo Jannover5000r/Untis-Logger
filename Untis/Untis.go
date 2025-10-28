@@ -30,7 +30,7 @@ type LoginResponse struct {
 	Result  Loginresult `json:"result"`
 }
 
-var Url = "https://thalia.webuntis.com/WebUntis/jsonrpc.do?school=Mons_Tabor"
+var Url = os.Getenv("URL")
 
 // var Password = os.Getenv("UNTIS_PASSWORD")
 // var USERS = os.Getenv("UNTIS_USER")
@@ -55,7 +55,9 @@ func Auth(user, password, userID string) ([]*http.Cookie, error) {
 		return nil, err
 	}
 	login := bytes.NewReader(loginJSON)
-
+	if Url == "" {
+		Url = os.Getenv("URL")
+	}
 	LoginOut, err := http.Post(Url, "application/json", login)
 	if err != nil {
 		return nil, err
