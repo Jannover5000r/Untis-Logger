@@ -30,7 +30,7 @@ type LoginResponse struct {
 	Result  Loginresult `json:"result"`
 }
 
-var Url = "https://thalia.webuntis.com/WebUntis/jsonrpc.do?school=Mons_Tabor"
+var Url = os.Getenv("URL")
 
 // var Password = os.Getenv("UNTIS_PASSWORD")
 // var USERS = os.Getenv("UNTIS_USER")
