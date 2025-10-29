@@ -1,3 +1,5 @@
+# Temp. Branch until i resolve coolify timezone issue for myself
+
 # Discord bot for logging Untis timetable to a Discord Webhook and Multiple accounts which can be added using !addaccount in a server whit the Bot
 
 ## create .env with Credentials
@@ -28,4 +30,3 @@
 ## In case your school is using a different timing for the Lessons than mine, you can change the times where you will be notified with the next room and Lesson for the day in **Line 71 in the main.go** file. The bot may not send you a message if there is no lesson after the specified time so that you can leave empty lessons as is for the days
 
 # I am neither a representative of Untis, Untis Baden-Württemberg GmbH nor a Developer in their team. This project is based on their API and my code and is not affiliated with them
-
