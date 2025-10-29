@@ -142,7 +142,7 @@ func scheduleTimetableUpdate() {
 	// Ticker for scheduled lesson notifications
 	startMinuteTicker(func() {
 		now := time.Now()
-		now = now.Add(-1 * time.Hour)
+		now = now.Add(1 * time.Hour)
 		if isScheduledTime(now) {
 			log.Println("Scheduled time reached, running notifications...")
 			accounts, _ := BotStart.LoadAndDecryptAccounts()
@@ -187,7 +187,7 @@ func Run(userID string) {
 	subjectByStartTime, _ := MapTimeToSubject(timetableFile)
 
 	nowOld := time.Now()
-	nowOld = nowOld.Add(-1 * time.Hour)
+	nowOld = nowOld.Add(1 * time.Hour)
 	now := nowOld.Format("15:04")
 	nextTime, room, foundRoom := NextRoomForTime(roomByStartTime, now)
 	if !foundRoom {
