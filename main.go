@@ -33,6 +33,8 @@ type NamedTimetableEntry struct {
 	ActivityType string   `json:"activityType"`
 }
 
+var WebHook = true
+
 // init and main//
 func init() {
 	godotenv.Load(".env")
@@ -202,15 +204,18 @@ func Run(userID string) {
 	status, _ := NextCodeForTime(codeByStartTime, now)
 
 	var message string
-	if status != "" {
+	if status == "cancelled" {
+		message = fmt.Sprintf("Next lesson: **%s** at **%s**. is **%s**", subject, nextTime, status)
+	} else if status != "" && status != "cancelled" {
 		message = fmt.Sprintf("Next lesson: **%s** in room **%s** at **%s**. Status: **%s**", subject, room, nextTime, status)
 	} else {
 		message = fmt.Sprintf("Next lesson: **%s** in room **%s** at **%s**.", subject, room, nextTime)
 	}
 
 	if userID == "default" {
-		// The default user still sends to the webhook
-		sendDiscordWebhook(subject, room, nextTime, status)
+		if WebHook {
+			sendDiscordWebhook(subject, room, nextTime, status)
+		}
 	} else {
 		BotStart.SendDM(userID, message)
 	}

@@ -16,8 +16,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/joho/godotenv"
 	"untislogger/Untis"
+
+	"github.com/joho/godotenv"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -42,6 +43,8 @@ var (
 )
 
 var encryptionKey []byte
+
+var WebHook = true
 
 func init() {
 	godotenv.Load(".env")
@@ -135,7 +138,7 @@ func saveAccount(userID, username, password string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(accountsFile, newData, 0644); err != nil {
+	if err := os.WriteFile(accountsFile, newData, 0o644); err != nil {
 		return err
 	}
 
@@ -143,10 +146,10 @@ func saveAccount(userID, username, password string) error {
 	timetableFile := getTimetableFile(userID)
 	timetableFilledFile := getTimetableFilledFile(userID)
 	if _, err := os.Stat(timetableFile); os.IsNotExist(err) {
-		os.WriteFile(timetableFile, []byte("[]"), 0644)
+		os.WriteFile(timetableFile, []byte("[]"), 0o644)
 	}
 	if _, err := os.Stat(timetableFilledFile); os.IsNotExist(err) {
-		os.WriteFile(timetableFilledFile, []byte("[]"), 0644)
+		os.WriteFile(timetableFilledFile, []byte("[]"), 0o644)
 	}
 
 	return nil
@@ -355,7 +358,7 @@ func deleteAccount(userID string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(accountsFile, newData, 0644); err != nil {
+	if err := os.WriteFile(accountsFile, newData, 0o644); err != nil {
 		return err
 	}
 
@@ -371,7 +374,15 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
-
+	if m.GuildID != "" && m.Content == "!WebHook" {
+		_ = s.ChannelMessageDelete(m.ChannelID, m.ID)
+		WebHook = !WebHook
+		if WebHook {
+			s.ChannelMessageSend(m.ChannelID, "Sending Webhook set to True")
+		} else {
+			s.ChannelMessageSend(m.ChannelID, "Sending Webhook set to False")
+		}
+	}
 	// Handle "!addaccount" only in guilds (not in DMs)
 	if m.GuildID != "" && m.Content == "!addaccount" {
 		// Delete the command for privacy
