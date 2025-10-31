@@ -382,6 +382,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		} else {
 			s.ChannelMessageSend(m.ChannelID, "Sending Webhook set to False")
 		}
+		return
 	}
 	// Handle "!addaccount" only in guilds (not in DMs)
 	if m.GuildID != "" && m.Content == "!addaccount" {

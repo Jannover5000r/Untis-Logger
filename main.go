@@ -33,8 +33,6 @@ type NamedTimetableEntry struct {
 	ActivityType string   `json:"activityType"`
 }
 
-var WebHook = true
-
 // init and main//
 func init() {
 	godotenv.Load(".env")
@@ -213,7 +211,8 @@ func Run(userID string) {
 	}
 
 	if userID == "default" {
-		if WebHook {
+		if BotStart.WebHook {
+			log.Println("WebHook status ", BotStart.WebHook)
 			sendDiscordWebhook(subject, room, nextTime, status)
 		}
 	} else {
