@@ -72,7 +72,7 @@ func main() {
 }
 
 func isScheduledTime(now time.Time) bool {
-	scheduled := []string{"07:45", "08:35", "09:35", "10:25", "11:25", "12:15", "13:40", "14:25"}
+	scheduled := []string{"07:45", "08:35", "09:35", "10:25", "11:25", "12:15", "13:40", "14:25", "15:20", "16:00"}
 	current := now.Format("15:04")
 	for _, t := range scheduled {
 		if t == current {
