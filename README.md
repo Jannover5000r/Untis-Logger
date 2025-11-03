@@ -15,7 +15,7 @@
 
 # This is a project for me, issues will be resolved as i find the motivation to do so, improvements may follow in the future
 
-### I will try to maintain this project as best as possible. Maybe add a better security to it than to trust the host but for now it is working and that was my goal. Please report any errors you find while using this bot
+## I will try to maintain this project as best as possible. Maybe add a better security to it than to trust the host but for now it is working and that was my goal. Please report any errors you find while using this bot
 
 # Installation
 
