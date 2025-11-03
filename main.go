@@ -215,9 +215,8 @@ func Run(userID string) {
 			log.Println("WebHook status ", BotStart.WebHook)
 			sendDiscordWebhook(subject, room, nextTime, status)
 		}
-	} else {
-		BotStart.SendDM(userID, message)
 	}
+	BotStart.SendDM(userID, message)
 }
 
 /*
