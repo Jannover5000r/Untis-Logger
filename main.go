@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,6 +32,53 @@ type NamedTimetableEntry struct {
 	Su           []string `json:"su"`
 	Ro           []string `json:"ro"`
 	ActivityType string   `json:"activityType"`
+}
+
+// lessonKey creates a stable key for a lesson (date + time + subject)
+func lessonKey(e NamedTimetableEntry) string {
+	subject := "unknown"
+	if len(e.Su) > 0 {
+		subject = e.Su[0]
+	}
+	// Include date for multi-day accuracy (e.g., Monday vs Tuesday)
+	return e.Date + "|" + e.StartTime + "|" + subject
+}
+
+// getSubject returns the first subject or "Free period"
+func getSubject(e NamedTimetableEntry) string {
+	if len(e.Su) == 0 {
+		return "Free period"
+	}
+	return e.Su[0]
+}
+
+// formatRoom returns a readable room string
+func formatRoom(rooms []string) string {
+	if len(rooms) == 0 {
+		return "no room"
+	}
+	return strings.Join(rooms, ", ")
+}
+
+// formatStatus returns a human-readable status
+func formatStatus(code string) string {
+	if code == "" {
+		return "regular"
+	}
+	return code
+}
+
+// slicesEqual checks if two string slices are equal (order-sensitive)
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // init and main//
@@ -72,7 +120,11 @@ func main() {
 }
 
 func isScheduledTime(now time.Time) bool {
+<<<<<<< HEAD
 	scheduled := []string{"07:45", "08:35", "09:35", "10:25", "11:25", "12:15", "13:40", "14:25", "15:20", "16:00"}
+=======
+	scheduled := []string{"07:45", "08:35", "09:35", "10:25", "11:25", "12:15", "13:40", "14:25"}
+>>>>>>> da5ca15 (detailed changed lessons message)
 	current := now.Format("15:04")
 	for _, t := range scheduled {
 		if t == current {
@@ -119,11 +171,89 @@ func scheduleTimetableUpdate() {
 				log.Printf("Error reading timetable for user %s: %v", acc.Username, err)
 				continue
 			}
+			// Parse current and previous timetable data
+			var currentEntries, prevEntries []NamedTimetableEntry
 
-			if prev, ok := prevData[acc.UserID]; ok && !bytes.Equal(data, prev) {
-				log.Printf("Timetable has changed for user %s.", acc.Username)
-				BotStart.SendDM(acc.UserID, "Your timetable has changed!")
+			if err := json.Unmarshal(data, &currentEntries); err != nil {
+				log.Printf("Failed to parse new timetable for user %s: %v", acc.Username, err)
+				prevData[acc.UserID] = data // still update to avoid repeated errors
+				continue
 			}
+
+			if prev, ok := prevData[acc.UserID]; ok {
+				if err := json.Unmarshal(prev, &prevEntries); err != nil {
+					log.Printf("Failed to parse previous timetable for user %s: %v", acc.Username, err)
+					prevData[acc.UserID] = data
+					continue
+				}
+
+				// Build maps keyed by a stable lesson identifier
+				currMap := make(map[string]NamedTimetableEntry)
+				prevMap := make(map[string]NamedTimetableEntry)
+
+				for _, e := range currentEntries {
+					key := lessonKey(e)
+					currMap[key] = e
+				}
+				for _, e := range prevEntries {
+					key := lessonKey(e)
+					prevMap[key] = e
+				}
+
+				var changes []string
+
+				// Check for modified or new lessons
+				for key, curr := range currMap {
+					if prev, exists := prevMap[key]; exists {
+						// Existing lesson — check for changes
+						subject := getSubject(curr)
+
+						// Room change?
+						if !slicesEqual(prev.Ro, curr.Ro) {
+							oldRoom := formatRoom(prev.Ro)
+							newRoom := formatRoom(curr.Ro)
+							changes = append(changes, fmt.Sprintf("Room changed for %s: %s → %s", subject, oldRoom, newRoom))
+						}
+
+						// Code/status change?
+						if prev.Code != curr.Code {
+							oldStatus := formatStatus(prev.Code)
+							newStatus := formatStatus(curr.Code)
+							changes = append(changes, fmt.Sprintf("Status changed for %s: %s → %s", subject, oldStatus, newStatus))
+						}
+					} else {
+						// New lesson
+						subject := getSubject(curr)
+						room := formatRoom(curr.Ro)
+						changes = append(changes, fmt.Sprintf("New lesson: %s in %s", subject, room))
+					}
+				}
+
+				// Check for removed lessons
+				for key, prev := range prevMap {
+					if _, exists := currMap[key]; !exists {
+						subject := getSubject(prev)
+						changes = append(changes, fmt.Sprintf("Lesson removed: %s", subject))
+					}
+				}
+
+				// Send notification if changes detected
+				if len(changes) > 0 {
+					log.Printf("Timetable changed for user %s: %d changes", acc.Username, len(changes))
+					message := "Your timetable has changed!\n\n" + strings.Join(changes, "\n")
+					BotStart.SendDM(acc.UserID, message)
+
+					// Optional: send to Discord webhook if configured and user is "default"
+					if acc.UserID == "default" && discordWebhookURL != "" {
+						sendUpdateDiscordWebhookWithDetails(changes)
+					}
+				}
+			} else {
+				// First run — no previous data, so don't notify
+				log.Printf("First timetable fetch for user %s", acc.Username)
+			}
+
+			// Always update prevData
 			prevData[acc.UserID] = data
 		}
 	}
@@ -413,6 +543,36 @@ func sendDiscordWebhook(subject string, room string, nextTime string, Status str
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		log.Println("Discord webhook notification sent successfully")
+	} else {
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.Printf("Discord webhook failed with status %d: %s", resp.StatusCode, string(body))
+	}
+}
+
+func sendUpdateDiscordWebhookWithDetails(changes []string) {
+	log.Println("Sending detailed Discord webhook notification...")
+
+	message := "**Timetable Update**\n\n" + strings.Join(changes, "\n")
+
+	payload := DiscordWebhookPayload{
+		Content: message,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Error marshaling webhook payload: %v", err)
+		return
+	}
+
+	resp, err := http.Post(discordWebhookURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("Error sending Discord webhook: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		log.Println("Detailed Discord webhook sent successfully")
 	} else {
 		body, _ := ioutil.ReadAll(resp.Body)
 		log.Printf("Discord webhook failed with status %d: %s", resp.StatusCode, string(body))
