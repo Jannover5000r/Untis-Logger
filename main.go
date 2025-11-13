@@ -101,6 +101,7 @@ func init() {
 }
 
 func main() {
+	
 	godotenv.Load(".env")
 	// Untis.Main() //starting API calls function| happens in schedule func
 	// Run()
@@ -315,6 +316,7 @@ func Run(userID string) {
 	nowOld := time.Now()
 	nowOld = nowOld.Add(1 * time.Hour)
 	now := nowOld.Format("15:04")
+	
 	nextTime, room, foundRoom := NextRoomForTime(roomByStartTime, now)
 	if !foundRoom {
 		return // No upcoming lessons
@@ -353,6 +355,10 @@ func NextRoomForTime(roomByStartTime map[string]string, current string) (string,
 	if err != nil {
 		return "", "", false
 	}
+	
+	// Calculate 30 minutes from now
+	thirtyMinutesLater := now.Add(30 * time.Minute)
+	
 	var times []time.Time
 	timeToStr := make(map[time.Time]string)
 	for t := range roomByStartTime {
@@ -360,16 +366,20 @@ func NextRoomForTime(roomByStartTime map[string]string, current string) (string,
 		if err != nil {
 			continue
 		}
-		times = append(times, parsed)
-		timeToStr[parsed] = t
-	}
-	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
-	for _, t := range times {
-		if t.After(now) {
-			return timeToStr[t], roomByStartTime[timeToStr[t]], true
+		// Only include times within the next 30 minutes
+		if parsed.After(now) && parsed.Before(thirtyMinutesLater) {
+			times = append(times, parsed)
+			timeToStr[parsed] = t
 		}
 	}
-	return "", "", false
+	
+	if len(times) == 0 {
+		return "", "", false
+	}
+	
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	// Return the first (earliest) room within the 30-minute window
+	return timeToStr[times[0]], roomByStartTime[timeToStr[times[0]]], true
 }
 
 func NextSubjectForTime(subjectByStartTime map[string]string, current string) (string, bool) {
@@ -378,6 +388,10 @@ func NextSubjectForTime(subjectByStartTime map[string]string, current string) (s
 	if err != nil {
 		return "", false
 	}
+	
+	// Calculate 30 minutes from now
+	thirtyMinutesLater := now.Add(30 * time.Minute)
+	
 	var times []time.Time
 	timeToStr := make(map[time.Time]string)
 	for t := range subjectByStartTime {
@@ -385,16 +399,20 @@ func NextSubjectForTime(subjectByStartTime map[string]string, current string) (s
 		if err != nil {
 			continue
 		}
-		times = append(times, parsed)
-		timeToStr[parsed] = t
-	}
-	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
-	for _, t := range times {
-		if t.After(now) {
-			return subjectByStartTime[timeToStr[t]], true
+		// Only include times within the next 30 minutes
+		if parsed.After(now) && parsed.Before(thirtyMinutesLater) {
+			times = append(times, parsed)
+			timeToStr[parsed] = t
 		}
 	}
-	return "", false
+	
+	if len(times) == 0 {
+		return "", false
+	}
+	
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	// Return the first (earliest) subject within the 30-minute window
+	return subjectByStartTime[timeToStr[times[0]]], true
 }
 
 func NextCodeForTime(codeByStartTime map[string]string, current string) (string, bool) {
@@ -403,6 +421,10 @@ func NextCodeForTime(codeByStartTime map[string]string, current string) (string,
 	if err != nil {
 		return "", false
 	}
+	
+	// Calculate 30 minutes from now
+	thirtyMinutesLater := now.Add(30 * time.Minute)
+	
 	var times []time.Time
 	timeToStr := make(map[time.Time]string)
 	for t := range codeByStartTime {
@@ -410,16 +432,20 @@ func NextCodeForTime(codeByStartTime map[string]string, current string) (string,
 		if err != nil {
 			continue
 		}
-		times = append(times, parsed)
-		timeToStr[parsed] = t
-	}
-	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
-	for _, t := range times {
-		if t.After(now) {
-			return codeByStartTime[timeToStr[t]], true
+		// Only include times within the next 30 minutes
+		if parsed.After(now) && parsed.Before(thirtyMinutesLater) {
+			times = append(times, parsed)
+			timeToStr[parsed] = t
 		}
 	}
-	return "", false
+	
+	if len(times) == 0 {
+		return "", false
+	}
+	
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	// Return the first (earliest) code within the 30-minute window
+	return codeByStartTime[timeToStr[times[0]]], true
 }
 
 func MapTimeToRoom(path string) (map[string]string, error) {
@@ -454,9 +480,7 @@ func MapTimeToCode(path string) (map[string]string, error) {
 	codeByStartTime := make(map[string]string)
 	for _, entry := range table {
 		if len(entry.Code) > 0 {
-			if _, exists := codeByStartTime[entry.StartTime]; !exists {
-				codeByStartTime[entry.StartTime] = entry.Code
-			}
+			codeByStartTime[entry.StartTime] = entry.Code
 		}
 	}
 	return codeByStartTime, nil

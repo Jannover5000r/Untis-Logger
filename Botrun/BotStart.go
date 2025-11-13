@@ -199,7 +199,8 @@ func checkTimetableChangesForUser(user Account, decPwd string, s *discordgo.Sess
 
 	// Compare and notify if changed
 	if !bytes.Equal(newData, prevData) {
-		sendLessonNotification(s, user.UserID, user.Username, "Your timetable has changed!")
+		// The main.go now handles detailed change notifications
+		// This function is kept for compatibility but no longer sends generic messages
 	}
 }
 
