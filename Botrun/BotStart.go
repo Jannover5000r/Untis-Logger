@@ -39,7 +39,7 @@ type UserState struct {
 var (
 	userStates   = make(map[string]*UserState) // userID -> state
 	stateMutex   sync.Mutex                    // protect userStates
-	accountsFile = "accounts.json"
+	accountsFile = "accounts/accounts.json"
 )
 
 var encryptionKey []byte
