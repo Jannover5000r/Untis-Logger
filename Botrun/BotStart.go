@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -107,6 +108,12 @@ func decrypt(encrypted string) (string, error) {
 // Save account info to JSON file (appends or updates)
 func saveAccount(userID, username, password string) error {
 	var accounts []Account
+
+	// Ensure the accounts directory exists
+	accountsDir := filepath.Dir(accountsFile)
+	if err := os.MkdirAll(accountsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create accounts directory: %v", err)
+	}
 
 	// Load existing accounts if file exists
 	if data, err := os.ReadFile(accountsFile); err == nil && len(data) > 0 {
