@@ -186,6 +186,12 @@ func scheduleTimetableUpdate() {
 				// Build maps keyed by a stable lesson identifier
 				currMap := make(map[string]NamedTimetableEntry)
 				prevMap := make(map[string]NamedTimetableEntry)
+				// Also build timeslot-based maps for better exchange detection
+				currTimeslotMap := make(map[string]NamedTimetableEntry)
+				prevTimeslotMap := make(map[string]NamedTimetableEntry)
+
+				// Get current date to filter out new day changes
+				today := time.Now().Format("02-01-2006")
 
 				for _, e := range currentEntries {
 					key := lessonKey(e)
@@ -200,6 +206,11 @@ func scheduleTimetableUpdate() {
 
 				// Check for modified or new lessons
 				for key, curr := range currMap {
+					// Skip lessons that are not for today to avoid new day spam
+					if curr.Date != today {
+						continue
+					}
+
 					if prev, exists := prevMap[key]; exists {
 						// Existing lesson — check for changes
 						subject := getSubject(curr)
@@ -211,6 +222,21 @@ func scheduleTimetableUpdate() {
 							changes = append(changes, fmt.Sprintf("Room changed for %s: %s → %s", subject, oldRoom, newRoom))
 						}
 
+					for _, e := range currentEntries {
+						key := lessonKey(e)
+						currMap[key] = e
+						// Create timeslot key (date + startTime + endTime)
+						timeslotKey := e.Date + "|" + e.StartTime + "|" + e.EndTime
+						currTimeslotMap[timeslotKey] = e
+					}
+					for _, e := range prevEntries {
+						key := lessonKey(e)
+						prevMap[key] = e
+						// Create timeslot key (date + startTime + endTime)
+						timeslotKey := e.Date + "|" + e.StartTime + "|" + e.EndTime
+						prevTimeslotMap[timeslotKey] = e
+					}
+
 						// Code/status change?
 						if prev.Code != curr.Code {
 							oldStatus := formatStatus(prev.Code)
@@ -218,18 +244,38 @@ func scheduleTimetableUpdate() {
 							changes = append(changes, fmt.Sprintf("Status changed for %s: %s → %s", subject, oldStatus, newStatus))
 						}
 					} else {
-						// New lesson
-						subject := getSubject(curr)
-						room := formatRoom(curr.Ro)
-						changes = append(changes, fmt.Sprintf("New lesson: %s in %s", subject, room))
+						// New lesson - but check if it's actually an exchange in the same timeslot
+						timeslotKey := curr.Date + "|" + curr.StartTime + "|" + curr.EndTime
+						if prevInTimeslot, exists := prevTimeslotMap[timeslotKey]; exists {
+							// This is an exchange: old lesson was removed, new one added in same timeslot
+							oldSubject := getSubject(prevInTimeslot)
+							newSubject := getSubject(curr)
+							room := formatRoom(curr.Ro)
+							changes = append(changes, fmt.Sprintf("Lesson exchanged: %s → %s in %s", oldSubject, newSubject, room))
+						} else {
+							// Truly new lesson
+							subject := getSubject(curr)
+							room := formatRoom(curr.Ro)
+							changes = append(changes, fmt.Sprintf("New lesson: %s in %s", subject, room))
+						}
 					}
 				}
 
 				// Check for removed lessons
 				for key, prev := range prevMap {
+					// Skip lessons that were not for today
+					if prev.Date != today {
+						continue
+					}
+
 					if _, exists := currMap[key]; !exists {
 						subject := getSubject(prev)
-						changes = append(changes, fmt.Sprintf("Lesson removed: %s", subject))
+						// Check if this removal is part of an exchange (already handled above)
+						timeslotKey := prev.Date + "|" + prev.StartTime + "|" + prev.EndTime
+						if _, newExists := currTimeslotMap[timeslotKey]; !newExists {
+							// Only report as removed if no new lesson took its place
+							changes = append(changes, fmt.Sprintf("Lesson removed: %s", subject))
+						}
 					}
 				}
 
