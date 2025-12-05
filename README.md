@@ -9,7 +9,7 @@
 - ENC_KEY (generated via head -c 32 /dev/urandom | base64)
 - URL
 
-### URL can be found by following this structure: "<https://thalia.webuntis.com/WebUntis/jsonrpc.do?school=[SchholName>]" while SchoolName can be found by visiting the official website, going to the login for your school and it will be: "<https://thalia.webuntis.com/WebUntis/?school=[SchoolName]#/basic/login>"
+### URL can be found by following this structure: "<https://[SchoolName].webuntis.com/WebUntis/jsonrpc.do?school=[SchholName]" while SchoolName can be found by visiting the official website, going to the login for your school and it will be: "<https://[SchoolName].webuntis.com/WebUntis/?school=[SchoolName]#/basic/login>"
 
 # This is a project for me, issues will be resolved as i find the motivation to do so, improvements may follow in the future
 
