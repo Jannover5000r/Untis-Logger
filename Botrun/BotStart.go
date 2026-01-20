@@ -111,7 +111,7 @@ func saveAccount(userID, username, password string) error {
 
 	// Ensure the accounts directory exists
 	accountsDir := filepath.Dir(accountsFile)
-	if err := os.MkdirAll(accountsDir, 0755); err != nil {
+	if err := os.MkdirAll(accountsDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create accounts directory: %v", err)
 	}
 
@@ -393,7 +393,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 	// Handle "!addaccount" only in guilds (not in DMs)
-	if m.GuildID != "" && m.Content == "!addaccount" {
+	if m.Content == "!addaccount" {
 		// Delete the command for privacy
 		_ = s.ChannelMessageDelete(m.ChannelID, m.ID)
 		// Create DM channel
@@ -408,6 +408,12 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		userStates[m.Author.ID] = &UserState{Step: "awaiting_username"}
 		stateMutex.Unlock()
 		return
+	}
+
+	if m.Content == "!update" {
+		_ = s.ChannelMessageDelete(m.ChannelID, m.ID)
+		checkAllUsersTimetables(DiscordSession)
+		s.ChannelMessageSend(m.ChannelID, "Updated all Timetables manually")
 	}
 
 	// Handle "!deleteaccount" and "!removeaccount" commands
