@@ -222,20 +222,20 @@ func scheduleTimetableUpdate() {
 							changes = append(changes, fmt.Sprintf("Room changed for %s: %s → %s", subject, oldRoom, newRoom))
 						}
 
-					for _, e := range currentEntries {
-						key := lessonKey(e)
-						currMap[key] = e
-						// Create timeslot key (date + startTime + endTime)
-						timeslotKey := e.Date + "|" + e.StartTime + "|" + e.EndTime
-						currTimeslotMap[timeslotKey] = e
-					}
-					for _, e := range prevEntries {
-						key := lessonKey(e)
-						prevMap[key] = e
-						// Create timeslot key (date + startTime + endTime)
-						timeslotKey := e.Date + "|" + e.StartTime + "|" + e.EndTime
-						prevTimeslotMap[timeslotKey] = e
-					}
+						for _, e := range currentEntries {
+							key := lessonKey(e)
+							currMap[key] = e
+							// Create timeslot key (date + startTime + endTime)
+							timeslotKey := e.Date + "|" + e.StartTime + "|" + e.EndTime
+							currTimeslotMap[timeslotKey] = e
+						}
+						for _, e := range prevEntries {
+							key := lessonKey(e)
+							prevMap[key] = e
+							// Create timeslot key (date + startTime + endTime)
+							timeslotKey := e.Date + "|" + e.StartTime + "|" + e.EndTime
+							prevTimeslotMap[timeslotKey] = e
+						}
 
 						// Code/status change?
 						if prev.Code != curr.Code {
@@ -615,31 +615,33 @@ func sendDiscordWebhook(subject string, room string, nextTime string, Status str
 }
 
 func sendUpdateDiscordWebhookWithDetails(changes []string) {
-	log.Println("Sending detailed Discord webhook notification...")
+	if BotStart.WebHook {
+		log.Println("Sending detailed Discord webhook notification...")
 
-	message := "**Timetable Update**\n\n" + strings.Join(changes, "\n")
+		message := "**Timetable Update**\n\n" + strings.Join(changes, "\n")
 
-	payload := DiscordWebhookPayload{
-		Content: message,
-	}
+		payload := DiscordWebhookPayload{
+			Content: message,
+		}
 
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("Error marshaling webhook payload: %v", err)
-		return
-	}
+		jsonData, err := json.Marshal(payload)
+		if err != nil {
+			log.Printf("Error marshaling webhook payload: %v", err)
+			return
+		}
 
-	resp, err := http.Post(discordWebhookURL, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		log.Printf("Error sending Discord webhook: %v", err)
-		return
-	}
-	defer resp.Body.Close()
+		resp, err := http.Post(discordWebhookURL, "application/json", bytes.NewBuffer(jsonData))
+		if err != nil {
+			log.Printf("Error sending Discord webhook: %v", err)
+			return
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		log.Println("Detailed Discord webhook sent successfully")
-	} else {
-		body, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Discord webhook failed with status %d: %s", resp.StatusCode, string(body))
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			log.Println("Detailed Discord webhook sent successfully")
+		} else {
+			body, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Discord webhook failed with status %d: %s", resp.StatusCode, string(body))
+		}
 	}
 }
