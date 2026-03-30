@@ -25,7 +25,6 @@
 
 ### For multi user support: using the command **!addaccount** in the discord server the bot is used in, it will than dm you with the sign up process prompting you to enter your untis Username and password (no email neededd just untis username). The username is stored as plain text and the password is hashed on the device hosting the bot, so currently it is **not secure** since the host will have access to the hashed password and the hash used! Deleting an account is done by using **!removeaccount** which will delete the account and the password, created with your discord account
 
-## In case your school is using a different timing for the Lessons than mine, you can change the times where you will be notified with the next room and Lesson for the day in **Line 71 in the main.go** file. The bot may not send you a message if there is no lesson after the specified time so that you can leave empty lessons as is for the days
+## For your timezone setup an ENV called "LOCATION_ENV" with your timezone as explained in the example env file. In case your school is using a different timing for the Lessons than mine, you can change the times where you will be notified with the next room and Lesson for the day in **Line 71 in the main.go** file. The bot may not send you a message if there is no lesson after the specified time so that you can leave empty lessons as is for the days
 
 # I am neither a representative of Untis, Untis Baden-Württemberg GmbH nor a Developer in their team. This project is based on their API and my code and is not affiliated with them
-

@@ -33,6 +33,8 @@ type NamedTimetableEntry struct {
 	ActivityType string   `json:"activityType"`
 }
 
+var location *time.Location
+
 // init and main//
 func init() {
 	godotenv.Load(".env")
@@ -50,6 +52,21 @@ func init() {
 	} else {
 		log.Println("No Discord webhook provided, Discord notifications will be disabled")
 	}
+
+	locEnv := os.Getenv("LOCATION_ENV")
+
+	var locErr error
+
+	location, locErr = time.LoadLocation(locEnv)
+
+	if locErr != nil {
+		log.Fatalf("Failed to load timezone: %v", locErr)
+	}
+	log.Printf("Timezone set to: %s", location)
+}
+
+func getTime() time.Time {
+	return time.Now().In(location)
 }
 
 func main() {
@@ -132,7 +149,7 @@ func scheduleTimetableUpdate() {
 	updateAllUsers()
 
 	// Ticker for periodic updates
-	hourTicker := time.NewTicker(1 * time.Minute) // For testing, 1 minute. Change to 1 * time.Hour for production.
+	hourTicker := time.NewTicker(30 * time.Minute)
 	go func() {
 		for range hourTicker.C {
 			updateAllUsers()
@@ -141,7 +158,7 @@ func scheduleTimetableUpdate() {
 
 	// Ticker for scheduled lesson notifications
 	startMinuteTicker(func() {
-		now := time.Now()
+		now := getTime()
 		if isScheduledTime(now) {
 			log.Println("Scheduled time reached, running notifications...")
 			accounts, _ := BotStart.LoadAndDecryptAccounts()
@@ -156,7 +173,7 @@ func scheduleTimetableUpdate() {
 }
 
 func startMinuteTicker(f func()) {
-	now := time.Now()
+	now := getTime()
 	next := now.Truncate(time.Minute).Add(time.Minute)
 	time.Sleep(time.Until(next))
 	ticker := time.NewTicker(1 * time.Minute)
@@ -185,7 +202,7 @@ func Run(userID string) {
 	roomByStartTime, _ := MapTimeToRoom(timetableFile)
 	subjectByStartTime, _ := MapTimeToSubject(timetableFile)
 
-	now := time.Now().Format("15:04")
+	now := getTime().Format("15:04")
 	nextTime, room, foundRoom := NextRoomForTime(roomByStartTime, now)
 	if !foundRoom {
 		return // No upcoming lessons
@@ -417,31 +434,7 @@ func sendUpdateDiscordWebhook() {
 	log.Println("Sending Discord webhook notification...")
 	// Create a rich embed message
 	message := "A lesson on your timetable has changed"
-	/*embed := Embed{
-		Title:       "Next Lesson ",
-		Description: "The next lesson is starting soon:  ",
-		Color:       3066993, // Green color
-		Timestamp:   time.Now().Format(time.RFC3339),
-		Fields: []Field{
-			{
-				Name: "New Lesson",
-				//	Value:  fmt.Sprintf("`%s`", ip),
-				Value:  fmt.Sprintf("Room: %s", room),
-				Inline: true,
-			},
-			{
-				Name:   "Start-Time",
-				Value:  fmt.Sprintf("Start time: %s", nextTime),
-				Inline: true,
-			},
-			{
-				Name:   "Status",
-				Value:  fmt.Sprintf("Status: %s", Status),
-				Inline: true,
-			},
-		},
-	}
-	*/
+
 	payload := DiscordWebhookPayload{
 		Content: message,
 	}

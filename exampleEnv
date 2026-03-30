@@ -1,0 +1,7 @@
+DISCORD_WEBHOOK_URL=[Paste Webhook]
+UNTIS_PASSWORD=[Default user passwd]
+UNTIS_USER=[Default user username]
+DISCORD_BOT_TOKEN=[Paste Bot token]
+ENC_KEY=[Generate enc key and paste]
+URL=[Untis url, create from tutorial in readme]
+LOCATION_ENV=Europe/Berlin [change to your timezone, needs to be usable by go's time package via time.LoadLocation()]
