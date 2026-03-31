@@ -12,6 +12,7 @@ import (
 	"sort"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	Untis "untislogger/Untis"
 
