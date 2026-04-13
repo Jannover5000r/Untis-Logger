@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	Untis "untislogger/Untis"
 
@@ -33,6 +34,8 @@ type NamedTimetableEntry struct {
 	Ro           []string `json:"ro"`
 	ActivityType string   `json:"activityType"`
 }
+
+var location *time.Location
 
 // lessonKey creates a stable key for a lesson (date + time + subject)
 func lessonKey(e NamedTimetableEntry) string {
@@ -98,6 +101,20 @@ func init() {
 	} else {
 		log.Println("No Discord webhook provided, Discord notifications will be disabled")
 	}
+	locEnv := os.Getenv("LOCATION_ENV")
+
+	var locErr error
+
+	location, locErr = time.LoadLocation(locEnv)
+
+	if locErr != nil {
+		log.Fatalf("Failed to load timezone: %v", locErr)
+	}
+	log.Printf("Timezone set to: %s", location)
+}
+
+func getTime() time.Time {
+	return time.Now().In(location)
 }
 
 func main() {
@@ -304,7 +321,7 @@ func scheduleTimetableUpdate() {
 	updateAllUsers()
 
 	// Ticker for periodic updates
-	hourTicker := time.NewTicker(1 * time.Minute) // For testing, 1 minute. Change to 1 * time.Hour for production.
+	hourTicker := time.NewTicker(30 * time.Minute)
 	go func() {
 		for range hourTicker.C {
 			updateAllUsers()
@@ -313,8 +330,7 @@ func scheduleTimetableUpdate() {
 
 	// Ticker for scheduled lesson notifications
 	startMinuteTicker(func() {
-		now := time.Now()
-		now = now.Add(1 * time.Hour)
+		now := getTime()
 		if isScheduledTime(now) {
 			log.Println("Scheduled time reached, running notifications...")
 			accounts, _ := BotStart.LoadAndDecryptAccounts()
@@ -329,7 +345,7 @@ func scheduleTimetableUpdate() {
 }
 
 func startMinuteTicker(f func()) {
-	now := time.Now()
+	now := getTime()
 	next := now.Truncate(time.Minute).Add(time.Minute)
 	time.Sleep(time.Until(next))
 	ticker := time.NewTicker(1 * time.Minute)
@@ -358,9 +374,7 @@ func Run(userID string) {
 	roomByStartTime, _ := MapTimeToRoom(timetableFile)
 	subjectByStartTime, _ := MapTimeToSubject(timetableFile)
 
-	nowOld := time.Now()
-	nowOld = nowOld.Add(1 * time.Hour)
-	now := nowOld.Format("15:04")
+	now := getTime().Format("15:04")
 
 	nextTime, room, foundRoom := NextRoomForTime(roomByStartTime, now)
 	if !foundRoom {
