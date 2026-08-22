@@ -209,6 +209,8 @@ func scheduleTimetableUpdate() {
 
 				// Get current date to filter out new day changes
 				today := time.Now().Format("02-01-2006")
+				// Get current time to filter any changes to Timetable before 3am so the new day changes stop
+				now := time.Now()
 
 				for _, e := range currentEntries {
 					key := lessonKey(e)
@@ -225,6 +227,9 @@ func scheduleTimetableUpdate() {
 				for key, curr := range currMap {
 					// Skip lessons that are not for today to avoid new day spam
 					if curr.Date != today {
+						continue
+					}
+					if now.Hour() < 3 {
 						continue
 					}
 
