@@ -1,4 +1,4 @@
-# Temp. Branch until i resolve coolify timezone issue for myself
+# Well, i guess this is not temporary anymore and will just become the new main
 
 # Discord bot for logging Untis timetable to a Discord Webhook and Multiple accounts which can be added using !addaccount in a server whit the Bot
 
