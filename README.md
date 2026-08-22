@@ -1,3 +1,5 @@
+# Well, i guess this is not temporary anymore and will just become the new main
+
 # Discord bot for logging Untis timetable to a Discord Webhook and Multiple accounts which can be added using !addaccount in a server whit the Bot
 
 ## create .env with Credentials
@@ -13,13 +15,13 @@
 
 # This is a project for me, issues will be resolved as i find the motivation to do so, improvements may follow in the future
 
-### I will try to maintain this project as best as possible. Maybe add a better security to it than to trust the host but for now it is working and that was my goal. Please report any errors you find while using this bot
+## I will try to maintain this project as best as possible. Maybe add a better security to it than to trust the host but for now it is working and that was my goal. Please report any errors you find while using this bot
 
 # Installation
 
 # This is a discord application intended for self hosting. You will need to add an application in the [disord developer website](https://discord.com/developers/applications) for this bot mainly with the read messages and write messages privelege as well as send privat messages for the account handling. If you give it administrator permissions you dont have to worry further but this could present you with a security risk if my github account gets compromised and a malicious update to the script gets pushed which you than use since the bot got access to your whole server
 
-# I also recommend to use a tool like [coolify](https://coolify.io/) to host the bot. Make sure to add the Env's and add **accounts.json** to persistant storage
+# I also recommend to use a tool like [coolify](https://coolify.io/) to host the bot. Make sure to add the Env's and add the **accounts/** folder to persistent storage
 
 ### This bot is self hosted and will run correctly when doing "go run . " in the root folder of the project. **Before usage add the .env file with the Credentials as mentioned above.** When you run the Program for the first time, all important files will be created automatically and the bot is ready to go. The user added via the fields UNTIS_USER and UNTIS_PASSWORD in the .env will be the one where the Webhook is sourced from and the other users will be send a DM after adding their account with the command. Add the Discord Webhook via the DISCORD_WEBHOOK_URL point in the .env and will send the messages for the timetable in there
 

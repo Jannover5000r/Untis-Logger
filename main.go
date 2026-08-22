@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 	_ "time/tzdata"
@@ -36,6 +37,53 @@ type NamedTimetableEntry struct {
 
 var location *time.Location
 
+// lessonKey creates a stable key for a lesson (date + time + subject)
+func lessonKey(e NamedTimetableEntry) string {
+	subject := "unknown"
+	if len(e.Su) > 0 {
+		subject = e.Su[0]
+	}
+	// Include date for multi-day accuracy (e.g., Monday vs Tuesday)
+	return e.Date + "|" + e.StartTime + "|" + subject
+}
+
+// getSubject returns the first subject or "Free period"
+func getSubject(e NamedTimetableEntry) string {
+	if len(e.Su) == 0 {
+		return "Free period"
+	}
+	return e.Su[0]
+}
+
+// formatRoom returns a readable room string
+func formatRoom(rooms []string) string {
+	if len(rooms) == 0 {
+		return "no room"
+	}
+	return strings.Join(rooms, ", ")
+}
+
+// formatStatus returns a human-readable status
+func formatStatus(code string) string {
+	if code == "" {
+		return "regular"
+	}
+	return code
+}
+
+// slicesEqual checks if two string slices are equal (order-sensitive)
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // init and main//
 func init() {
 	godotenv.Load(".env")
@@ -53,7 +101,6 @@ func init() {
 	} else {
 		log.Println("No Discord webhook provided, Discord notifications will be disabled")
 	}
-
 	locEnv := os.Getenv("LOCATION_ENV")
 
 	var locErr error
@@ -90,7 +137,7 @@ func main() {
 }
 
 func isScheduledTime(now time.Time) bool {
-	scheduled := []string{"07:45", "08:35", "09:35", "10:25", "11:25", "12:15", "13:40", "14:25"}
+	scheduled := []string{"07:45", "08:35", "09:35", "10:25", "11:25", "12:15", "13:40", "14:25", "15:20", "16:00"}
 	current := now.Format("15:04")
 	for _, t := range scheduled {
 		if t == current {
@@ -137,11 +184,135 @@ func scheduleTimetableUpdate() {
 				log.Printf("Error reading timetable for user %s: %v", acc.Username, err)
 				continue
 			}
+			// Parse current and previous timetable data
+			var currentEntries, prevEntries []NamedTimetableEntry
 
-			if prev, ok := prevData[acc.UserID]; ok && !bytes.Equal(data, prev) {
-				log.Printf("Timetable has changed for user %s.", acc.Username)
-				BotStart.SendDM(acc.UserID, "Your timetable has changed!")
+			if err := json.Unmarshal(data, &currentEntries); err != nil {
+				log.Printf("Failed to parse new timetable for user %s: %v", acc.Username, err)
+				prevData[acc.UserID] = data // still update to avoid repeated errors
+				continue
 			}
+
+			if prev, ok := prevData[acc.UserID]; ok {
+				if err := json.Unmarshal(prev, &prevEntries); err != nil {
+					log.Printf("Failed to parse previous timetable for user %s: %v", acc.Username, err)
+					prevData[acc.UserID] = data
+					continue
+				}
+
+				// Build maps keyed by a stable lesson identifier
+				currMap := make(map[string]NamedTimetableEntry)
+				prevMap := make(map[string]NamedTimetableEntry)
+				// Also build timeslot-based maps for better exchange detection
+				currTimeslotMap := make(map[string]NamedTimetableEntry)
+				prevTimeslotMap := make(map[string]NamedTimetableEntry)
+
+				// Get current date to filter out new day changes
+				today := time.Now().Format("02-01-2006")
+
+				for _, e := range currentEntries {
+					key := lessonKey(e)
+					currMap[key] = e
+				}
+				for _, e := range prevEntries {
+					key := lessonKey(e)
+					prevMap[key] = e
+				}
+
+				var changes []string
+
+				// Check for modified or new lessons
+				for key, curr := range currMap {
+					// Skip lessons that are not for today to avoid new day spam
+					if curr.Date != today {
+						continue
+					}
+
+					if prev, exists := prevMap[key]; exists {
+						// Existing lesson — check for changes
+						subject := getSubject(curr)
+
+						// Room change?
+						if !slicesEqual(prev.Ro, curr.Ro) {
+							oldRoom := formatRoom(prev.Ro)
+							newRoom := formatRoom(curr.Ro)
+							changes = append(changes, fmt.Sprintf("Room changed for %s: %s → %s", subject, oldRoom, newRoom))
+						}
+
+						for _, e := range currentEntries {
+							key := lessonKey(e)
+							currMap[key] = e
+							// Create timeslot key (date + startTime + endTime)
+							timeslotKey := e.Date + "|" + e.StartTime + "|" + e.EndTime
+							currTimeslotMap[timeslotKey] = e
+						}
+						for _, e := range prevEntries {
+							key := lessonKey(e)
+							prevMap[key] = e
+							// Create timeslot key (date + startTime + endTime)
+							timeslotKey := e.Date + "|" + e.StartTime + "|" + e.EndTime
+							prevTimeslotMap[timeslotKey] = e
+						}
+
+						// Code/status change?
+						if prev.Code != curr.Code {
+							oldStatus := formatStatus(prev.Code)
+							newStatus := formatStatus(curr.Code)
+							changes = append(changes, fmt.Sprintf("Status changed for %s: %s → %s", subject, oldStatus, newStatus))
+						}
+					} else {
+						// New lesson - but check if it's actually an exchange in the same timeslot
+						timeslotKey := curr.Date + "|" + curr.StartTime + "|" + curr.EndTime
+						if prevInTimeslot, exists := prevTimeslotMap[timeslotKey]; exists {
+							// This is an exchange: old lesson was removed, new one added in same timeslot
+							oldSubject := getSubject(prevInTimeslot)
+							newSubject := getSubject(curr)
+							room := formatRoom(curr.Ro)
+							changes = append(changes, fmt.Sprintf("Lesson exchanged: %s → %s in %s", oldSubject, newSubject, room))
+						} else {
+							// Truly new lesson
+							subject := getSubject(curr)
+							room := formatRoom(curr.Ro)
+							changes = append(changes, fmt.Sprintf("New lesson: %s in %s", subject, room))
+						}
+					}
+				}
+
+				// Check for removed lessons
+				for key, prev := range prevMap {
+					// Skip lessons that were not for today
+					if prev.Date != today {
+						continue
+					}
+
+					if _, exists := currMap[key]; !exists {
+						subject := getSubject(prev)
+						// Check if this removal is part of an exchange (already handled above)
+						timeslotKey := prev.Date + "|" + prev.StartTime + "|" + prev.EndTime
+						if _, newExists := currTimeslotMap[timeslotKey]; !newExists {
+							// Only report as removed if no new lesson took its place
+							changes = append(changes, fmt.Sprintf("Lesson removed: %s", subject))
+						}
+					}
+				}
+
+				// Send notification if changes detected
+				if len(changes) > 0 {
+					log.Printf("Timetable changed for user %s: %d changes", acc.Username, len(changes))
+					message := "Your timetable has changed!\n\n" + strings.Join(changes, "\n")
+					BotStart.SendDM(acc.UserID, message)
+
+					// Optional: send to Discord webhook if configured and user is "default"
+					if acc.UserID == "default" && discordWebhookURL != "" {
+						sendUpdateDiscordWebhookWithDetails(changes)
+					}
+				}
+			} else {
+				// First run — no previous data, so don't notify
+				log.Printf("First timetable fetch for user %s", acc.Username)
+			}
+
+			// Always update prevData
 			prevData[acc.UserID] = data
 		}
 	}
@@ -204,6 +375,7 @@ func Run(userID string) {
 	subjectByStartTime, _ := MapTimeToSubject(timetableFile)
 
 	now := getTime().Format("15:04")
+
 	nextTime, room, foundRoom := NextRoomForTime(roomByStartTime, now)
 	if !foundRoom {
 		return // No upcoming lessons
@@ -217,18 +389,21 @@ func Run(userID string) {
 	status, _ := NextCodeForTime(codeByStartTime, now)
 
 	var message string
-	if status != "" {
+	if status == "cancelled" {
+		message = fmt.Sprintf("Next lesson: **%s** at **%s**. is **%s**", subject, nextTime, status)
+	} else if status != "" && status != "cancelled" {
 		message = fmt.Sprintf("Next lesson: **%s** in room **%s** at **%s**. Status: **%s**", subject, room, nextTime, status)
 	} else {
 		message = fmt.Sprintf("Next lesson: **%s** in room **%s** at **%s**.", subject, room, nextTime)
 	}
 
 	if userID == "default" {
-		// The default user still sends to the webhook
-		sendDiscordWebhook(subject, room, nextTime, status)
-	} else {
-		BotStart.SendDM(userID, message)
+		if BotStart.WebHook {
+			log.Println("WebHook status ", BotStart.WebHook)
+			sendDiscordWebhook(subject, room, nextTime, status)
+		}
 	}
+	BotStart.SendDM(userID, message)
 }
 
 /*
@@ -239,6 +414,10 @@ func NextRoomForTime(roomByStartTime map[string]string, current string) (string,
 	if err != nil {
 		return "", "", false
 	}
+
+	// Calculate 30 minutes from now
+	thirtyMinutesLater := now.Add(30 * time.Minute)
+
 	var times []time.Time
 	timeToStr := make(map[time.Time]string)
 	for t := range roomByStartTime {
@@ -246,16 +425,20 @@ func NextRoomForTime(roomByStartTime map[string]string, current string) (string,
 		if err != nil {
 			continue
 		}
-		times = append(times, parsed)
-		timeToStr[parsed] = t
-	}
-	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
-	for _, t := range times {
-		if t.After(now) {
-			return timeToStr[t], roomByStartTime[timeToStr[t]], true
+		// Only include times within the next 30 minutes
+		if parsed.After(now) && parsed.Before(thirtyMinutesLater) {
+			times = append(times, parsed)
+			timeToStr[parsed] = t
 		}
 	}
-	return "", "", false
+
+	if len(times) == 0 {
+		return "", "", false
+	}
+
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	// Return the first (earliest) room within the 30-minute window
+	return timeToStr[times[0]], roomByStartTime[timeToStr[times[0]]], true
 }
 
 func NextSubjectForTime(subjectByStartTime map[string]string, current string) (string, bool) {
@@ -264,6 +447,10 @@ func NextSubjectForTime(subjectByStartTime map[string]string, current string) (s
 	if err != nil {
 		return "", false
 	}
+
+	// Calculate 30 minutes from now
+	thirtyMinutesLater := now.Add(30 * time.Minute)
+
 	var times []time.Time
 	timeToStr := make(map[time.Time]string)
 	for t := range subjectByStartTime {
@@ -271,16 +458,20 @@ func NextSubjectForTime(subjectByStartTime map[string]string, current string) (s
 		if err != nil {
 			continue
 		}
-		times = append(times, parsed)
-		timeToStr[parsed] = t
-	}
-	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
-	for _, t := range times {
-		if t.After(now) {
-			return subjectByStartTime[timeToStr[t]], true
+		// Only include times within the next 30 minutes
+		if parsed.After(now) && parsed.Before(thirtyMinutesLater) {
+			times = append(times, parsed)
+			timeToStr[parsed] = t
 		}
 	}
-	return "", false
+
+	if len(times) == 0 {
+		return "", false
+	}
+
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	// Return the first (earliest) subject within the 30-minute window
+	return subjectByStartTime[timeToStr[times[0]]], true
 }
 
 func NextCodeForTime(codeByStartTime map[string]string, current string) (string, bool) {
@@ -289,6 +480,10 @@ func NextCodeForTime(codeByStartTime map[string]string, current string) (string,
 	if err != nil {
 		return "", false
 	}
+
+	// Calculate 30 minutes from now
+	thirtyMinutesLater := now.Add(30 * time.Minute)
+
 	var times []time.Time
 	timeToStr := make(map[time.Time]string)
 	for t := range codeByStartTime {
@@ -296,16 +491,20 @@ func NextCodeForTime(codeByStartTime map[string]string, current string) (string,
 		if err != nil {
 			continue
 		}
-		times = append(times, parsed)
-		timeToStr[parsed] = t
-	}
-	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
-	for _, t := range times {
-		if t.After(now) {
-			return codeByStartTime[timeToStr[t]], true
+		// Only include times within the next 30 minutes
+		if parsed.After(now) && parsed.Before(thirtyMinutesLater) {
+			times = append(times, parsed)
+			timeToStr[parsed] = t
 		}
 	}
-	return "", false
+
+	if len(times) == 0 {
+		return "", false
+	}
+
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	// Return the first (earliest) code within the 30-minute window
+	return codeByStartTime[timeToStr[times[0]]], true
 }
 
 func MapTimeToRoom(path string) (map[string]string, error) {
@@ -340,9 +539,7 @@ func MapTimeToCode(path string) (map[string]string, error) {
 	codeByStartTime := make(map[string]string)
 	for _, entry := range table {
 		if len(entry.Code) > 0 {
-			if _, exists := codeByStartTime[entry.StartTime]; !exists {
-				codeByStartTime[entry.StartTime] = entry.Code
-			}
+			codeByStartTime[entry.StartTime] = entry.Code
 		}
 	}
 	return codeByStartTime, nil
@@ -431,32 +628,34 @@ func sendDiscordWebhook(subject string, room string, nextTime string, Status str
 	}
 }
 
-func sendUpdateDiscordWebhook() {
-	log.Println("Sending Discord webhook notification...")
-	// Create a rich embed message
-	message := "A lesson on your timetable has changed"
+func sendUpdateDiscordWebhookWithDetails(changes []string) {
+	if BotStart.WebHook {
+		log.Println("Sending detailed Discord webhook notification...")
 
-	payload := DiscordWebhookPayload{
-		Content: message,
-	}
+		message := "**Timetable Update**\n\n" + strings.Join(changes, "\n")
 
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("Error marshaling webhook payload: %v", err)
-		return
-	}
+		payload := DiscordWebhookPayload{
+			Content: message,
+		}
 
-	resp, err := http.Post(discordWebhookURL, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		log.Printf("Error sending Discord webhook: %v", err)
-		return
-	}
-	defer resp.Body.Close()
+		jsonData, err := json.Marshal(payload)
+		if err != nil {
+			log.Printf("Error marshaling webhook payload: %v", err)
+			return
+		}
 
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		log.Println("Discord webhook notification sent successfully")
-	} else {
-		body, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Discord webhook failed with status %d: %s", resp.StatusCode, string(body))
+		resp, err := http.Post(discordWebhookURL, "application/json", bytes.NewBuffer(jsonData))
+		if err != nil {
+			log.Printf("Error sending Discord webhook: %v", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			log.Println("Detailed Discord webhook sent successfully")
+		} else {
+			body, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Discord webhook failed with status %d: %s", resp.StatusCode, string(body))
+		}
 	}
 }

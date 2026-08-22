@@ -12,12 +12,14 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/joho/godotenv"
 	"untislogger/Untis"
+
+	"github.com/joho/godotenv"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -38,10 +40,12 @@ type UserState struct {
 var (
 	userStates   = make(map[string]*UserState) // userID -> state
 	stateMutex   sync.Mutex                    // protect userStates
-	accountsFile = "accounts.json"
+	accountsFile = "accounts/accounts.json"
 )
 
 var encryptionKey []byte
+
+var WebHook = true
 
 func init() {
 	godotenv.Load(".env")
@@ -105,6 +109,12 @@ func decrypt(encrypted string) (string, error) {
 func saveAccount(userID, username, password string) error {
 	var accounts []Account
 
+	// Ensure the accounts directory exists
+	accountsDir := filepath.Dir(accountsFile)
+	if err := os.MkdirAll(accountsDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create accounts directory: %v", err)
+	}
+
 	// Load existing accounts if file exists
 	if data, err := os.ReadFile(accountsFile); err == nil && len(data) > 0 {
 		_ = json.Unmarshal(data, &accounts)
@@ -135,7 +145,7 @@ func saveAccount(userID, username, password string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(accountsFile, newData, 0644); err != nil {
+	if err := os.WriteFile(accountsFile, newData, 0o644); err != nil {
 		return err
 	}
 
@@ -143,10 +153,10 @@ func saveAccount(userID, username, password string) error {
 	timetableFile := getTimetableFile(userID)
 	timetableFilledFile := getTimetableFilledFile(userID)
 	if _, err := os.Stat(timetableFile); os.IsNotExist(err) {
-		os.WriteFile(timetableFile, []byte("[]"), 0644)
+		os.WriteFile(timetableFile, []byte("[]"), 0o644)
 	}
 	if _, err := os.Stat(timetableFilledFile); os.IsNotExist(err) {
-		os.WriteFile(timetableFilledFile, []byte("[]"), 0644)
+		os.WriteFile(timetableFilledFile, []byte("[]"), 0o644)
 	}
 
 	return nil
@@ -196,7 +206,8 @@ func checkTimetableChangesForUser(user Account, decPwd string, s *discordgo.Sess
 
 	// Compare and notify if changed
 	if !bytes.Equal(newData, prevData) {
-		sendLessonNotification(s, user.UserID, user.Username, "Your timetable has changed!")
+		// The main.go now handles detailed change notifications
+		// This function is kept for compatibility but no longer sends generic messages
 	}
 }
 
@@ -355,7 +366,7 @@ func deleteAccount(userID string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(accountsFile, newData, 0644); err != nil {
+	if err := os.WriteFile(accountsFile, newData, 0o644); err != nil {
 		return err
 	}
 
@@ -371,9 +382,18 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
-
+	if m.GuildID != "" && m.Content == "!WebHook" {
+		_ = s.ChannelMessageDelete(m.ChannelID, m.ID)
+		WebHook = !WebHook
+		if WebHook {
+			s.ChannelMessageSend(m.ChannelID, "Sending Webhook set to True")
+		} else {
+			s.ChannelMessageSend(m.ChannelID, "Sending Webhook set to False")
+		}
+		return
+	}
 	// Handle "!addaccount" only in guilds (not in DMs)
-	if m.GuildID != "" && m.Content == "!addaccount" {
+	if m.Content == "!addaccount" {
 		// Delete the command for privacy
 		_ = s.ChannelMessageDelete(m.ChannelID, m.ID)
 		// Create DM channel
@@ -388,6 +408,12 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		userStates[m.Author.ID] = &UserState{Step: "awaiting_username"}
 		stateMutex.Unlock()
 		return
+	}
+
+	if m.Content == "!update" {
+		_ = s.ChannelMessageDelete(m.ChannelID, m.ID)
+		checkAllUsersTimetables(DiscordSession)
+		s.ChannelMessageSend(m.ChannelID, "Updated all Timetables manually")
 	}
 
 	// Handle "!deleteaccount" and "!removeaccount" commands
