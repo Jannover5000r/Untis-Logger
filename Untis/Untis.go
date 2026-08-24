@@ -32,8 +32,6 @@ type LoginResponse struct {
 
 var Url = os.Getenv("URL")
 
-// var Password = os.Getenv("UNTIS_PASSWORD")
-// var USERS = os.Getenv("UNTIS_USER")
 func Main(user, password, userID string) {
 	godotenv.Load("../.env")
 	cookies, err := Auth(user, password, userID)
@@ -46,6 +44,16 @@ func Main(user, password, userID string) {
 	Subjects(cookies)
 	Timetable(cookies, userID)
 	Teachers(cookies)
+}
+
+func Update(user, password, userID string) {
+	godotenv.Load("../.env")
+	cookies, err := Auth(user, password, userID)
+	if err != nil {
+		log.Printf("Authentication failed for user %s: %v", user, err)
+		return
+	}
+	Timetable(cookies, userID)
 }
 
 func Auth(user, password, userID string) ([]*http.Cookie, error) {

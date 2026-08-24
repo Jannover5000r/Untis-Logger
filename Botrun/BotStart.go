@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
-	"time"
 
 	"untislogger/Untis"
 
@@ -225,7 +224,6 @@ func checkAllUsersTimetables(s *discordgo.Session) {
 	accounts := loadAllAccounts()
 	for _, user := range accounts {
 		decPwd, _ := decrypt(user.Password)
-		// You can use decPwd to fetch the timetable for this user
 		checkTimetableChangesForUser(user, decPwd, s)
 	}
 }
@@ -252,14 +250,6 @@ func Start() {
 		fmt.Println("error opening connection,", err)
 		return
 	}
-
-	// Schedule timetable checks every minute (or hour as needed)
-	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
-		for range ticker.C {
-			checkAllUsersTimetables(dg)
-		}
-	}()
 
 	fmt.Println("Bot is now running. Press CTRL+C to exit.")
 	// Wait for CTRL+C or other term signal to exit.

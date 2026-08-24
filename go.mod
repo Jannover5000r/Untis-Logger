@@ -1,6 +1,6 @@
 module untislogger
 
-go 1.25.2
+go 1.27.0
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0

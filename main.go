@@ -111,19 +111,13 @@ func init() {
 		log.Fatalf("Failed to load timezone: %v", locErr)
 	}
 	log.Printf("Timezone set to: %s", location)
-}
-
-func getTime() time.Time {
-	return time.Now().In(location)
+	initUpdate()
 }
 
 func main() {
 	godotenv.Load(".env")
-	// Untis.Main() //starting API calls function| happens in schedule func
-	// Run()
-	// Starts logging the timetable for each new Lesson and logs changes
 	go BotStart.Start()
-	scheduleTimetableUpdate()
+	go scheduleTimetableUpdate()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -136,6 +130,10 @@ func main() {
 	log.Println("Shutting down...")
 }
 
+func getTime() time.Time {
+	return time.Now().In(location)
+}
+
 func isScheduledTime(now time.Time) bool {
 	scheduled := []string{"07:45", "08:35", "09:35", "10:25", "11:25", "12:15", "13:40", "14:25", "15:20", "16:00"}
 	current := now.Format("15:04")
@@ -145,6 +143,32 @@ func isScheduledTime(now time.Time) bool {
 		}
 	}
 	return false
+}
+
+func initUpdate() {
+	// Load all registered users
+	accounts, err := BotStart.LoadAndDecryptAccounts()
+	if err != nil {
+		log.Printf("Error loading accounts: %v", err)
+	}
+
+	// Add the default user from .env
+	defaultUser := os.Getenv("UNTIS_USER")
+	defaultPassword := os.Getenv("UNTIS_PASSWORD")
+	if defaultUser != "" && defaultPassword != "" {
+		accounts = append(accounts, BotStart.DecryptedAccount{
+			UserID:            "default",
+			Username:          defaultUser,
+			DecryptedPassword: defaultPassword,
+		})
+	}
+
+	// Process each user
+	for _, acc := range accounts {
+		// Fetch the latest timetable and only timetable
+		Untis.Main(acc.Username, acc.DecryptedPassword, acc.UserID)
+		time.Sleep(3 * time.Second)
+	}
 }
 
 func scheduleTimetableUpdate() {
@@ -171,8 +195,9 @@ func scheduleTimetableUpdate() {
 
 		// Process each user
 		for _, acc := range accounts {
-			// Fetch the latest timetable
-			Untis.Main(acc.Username, acc.DecryptedPassword, acc.UserID)
+			// Fetch the latest timetable and only timetable
+			Untis.Update(acc.Username, acc.DecryptedPassword, acc.UserID)
+			time.Sleep(3 * time.Second)
 
 			// Check for changes
 			timetableFile := fmt.Sprintf("timetableFilled_%s.json", acc.UserID)
