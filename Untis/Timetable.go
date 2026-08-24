@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 )
 
 type TimetableResponse struct {
@@ -100,7 +99,7 @@ func Timetable(cookies []*http.Cookie, userID string) {
 		return
 	}
 
-	today := time.Now().Format("20060102")
+	today := GetTime().Format("20060102")
 	g := getTimetable{"2023-05-06 15:44:22.215292", "getTimetable", params{today, today, loginResult.PersonID, loginResult.PersonType}, "2.0"}
 	timetablesJson, err := json.Marshal(g)
 	if err != nil {
@@ -148,7 +147,7 @@ func Timetable(cookies []*http.Cookie, userID string) {
 	if userID != "" {
 		timetableFile = "timetable_" + userID + ".json"
 	}
-	if err := os.WriteFile(timetableFile, data, 0644); err != nil {
+	if err := os.WriteFile(timetableFile, data, 0o644); err != nil {
 		log.Printf("Error writing timetable file: %v", err)
 		return
 	}
@@ -172,6 +171,7 @@ func LoadIDMap(path string) (map[int]string, error) {
 	}
 	return m, nil
 }
+
 func LoadTimetable(path string) ([]TimetableEntry, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -183,11 +183,13 @@ func LoadTimetable(path string) ([]TimetableEntry, error) {
 	}
 	return entries, nil
 }
+
 func formatTime(t int) string {
 	h := t / 100
 	m := t % 100
 	return fmt.Sprintf("%02d:%02d", h, m)
 }
+
 func formatDate(date int) string {
 	s := fmt.Sprintf("%08d", date) // ensures leading zeros
 	year := s[:4]
@@ -195,6 +197,7 @@ func formatDate(date int) string {
 	day := s[6:8]
 	return fmt.Sprintf("%s-%s-%s", day, month, year)
 }
+
 func setTimetable(userID string) {
 	subjects, _ := LoadIDMap("subjects.json")
 	rooms, _ := LoadIDMap("rooms.json")
@@ -242,7 +245,7 @@ func setTimetable(userID string) {
 	if userID != "" {
 		timetableFilledFile = "timetableFilled_" + userID + ".json"
 	}
-	if err := os.WriteFile(timetableFilledFile, data, 0644); err != nil {
+	if err := os.WriteFile(timetableFilledFile, data, 0o644); err != nil {
 		log.Printf("Error writing timetableFilled file: %v", err)
 		return
 	}
