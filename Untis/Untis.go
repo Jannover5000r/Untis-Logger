@@ -36,6 +36,7 @@ var Url = os.Getenv("URL")
 var location *time.Location
 
 func init() {
+	godotenv.Load("../.env")
 	locEnv := os.Getenv("LOCATION_ENV")
 	if locEnv == "" {
 		locEnv = "UTC"
