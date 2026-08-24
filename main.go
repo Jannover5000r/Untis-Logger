@@ -102,19 +102,15 @@ func init() {
 		log.Println("No Discord webhook provided, Discord notifications will be disabled")
 	}
 	locEnv := os.Getenv("LOCATION_ENV")
-
-	var locErr error
-
-	location, locErr = time.LoadLocation(locEnv)
-
-	if locErr != nil {
-		log.Fatalf("Failed to load timezone: %v", locErr)
+	var locerr error
+	Untis.Location, locerr = time.LoadLocation(locEnv)
+	if err != nil {
+		log.Fatalf("Failed to load Timezone: %v", locerr)
 	}
-	log.Printf("Timezone set to: %s", location)
 }
 
 func getTime() time.Time {
-	return time.Now().In(location)
+	return Untis.GetTime()
 }
 
 func main() {
@@ -208,9 +204,15 @@ func scheduleTimetableUpdate() {
 				prevTimeslotMap := make(map[string]NamedTimetableEntry)
 
 				// Get current date to filter out new day changes
-				today := time.Now().Format("02-01-2006")
+				today := getTime().Format("02-01-2006")
 				// Get current time to filter any changes to Timetable before 3am so the new day changes stop
-				now := time.Now()
+				//
+				now := getTime()
+				// If before 3am stop and update userdata
+				if now.Hour() < 3 {
+					prevData[acc.UserID] = data
+					continue
+				}
 
 				for _, e := range currentEntries {
 					key := lessonKey(e)
@@ -227,9 +229,6 @@ func scheduleTimetableUpdate() {
 				for key, curr := range currMap {
 					// Skip lessons that are not for today to avoid new day spam
 					if curr.Date != today {
-						continue
-					}
-					if now.Hour() < 3 {
 						continue
 					}
 
