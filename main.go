@@ -104,7 +104,7 @@ func init() {
 	locEnv := os.Getenv("LOCATION_ENV")
 	var locerr error
 	Untis.Location, locerr = time.LoadLocation(locEnv)
-	if err != nil {
+	if locerr != nil {
 		log.Fatalf("Failed to load Timezone: %v", locerr)
 	}
 }

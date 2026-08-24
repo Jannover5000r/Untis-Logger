@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -32,17 +31,6 @@ type LoginResponse struct {
 }
 
 var Url = os.Getenv("URL")
-
-var location *time.Location
-
-func init() {
-	godotenv.Load("../.env")
-	locEnv := os.Getenv("LOCATION_ENV")
-	if locEnv == "" {
-		locEnv = "UTC"
-	}
-	location, _ = time.LoadLocation(locEnv)
-}
 
 // var Password = os.Getenv("UNTIS_PASSWORD")
 // var USERS = os.Getenv("UNTIS_USER")
