@@ -208,8 +208,8 @@ func scheduleTimetableUpdate() {
 				// Get current time to filter any changes to Timetable before 3am so the new day changes stop
 				//
 				now := getTime()
-				// If before 3am stop and update userdata
-				if now.Hour() < 3 {
+				// If before 1am stop and update userdata
+				if now.Hour() < 1 {
 					prevData[acc.UserID] = data
 					continue
 				}
