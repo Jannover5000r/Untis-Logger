@@ -44,6 +44,7 @@ func Main(user, password, userID string) {
 	Subjects(cookies)
 	Timetable(cookies, userID)
 	Teachers(cookies)
+	log.Printf("updated everything for user: %s ", user)
 }
 
 func Update(user, password, userID string) {
@@ -54,6 +55,7 @@ func Update(user, password, userID string) {
 		return
 	}
 	Timetable(cookies, userID)
+	log.Printf("Updated info for user: %s ", user)
 }
 
 func Auth(user, password, userID string) ([]*http.Cookie, error) {
@@ -73,7 +75,7 @@ func Auth(user, password, userID string) ([]*http.Cookie, error) {
 	defer LoginOut.Body.Close()
 
 	cookies := LoginOut.Cookies()
-	log.Printf("Login successful for user: %s", user)
+	//	log.Printf("Login successful for user: %s", user)//log not needed
 
 	response, err := io.ReadAll(LoginOut.Body)
 	if err != nil {

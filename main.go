@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -93,7 +93,7 @@ func init() {
 	}
 	discordWebhookURL = os.Getenv("DISCORD_WEBHOOK_URL")
 	log.Println("Initializing application...")
-	log.Printf("DISCORD_WEBHOOK_URL: %q", discordWebhookURL)
+	//	log.Printf("DISCORD_WEBHOOK_URL: %q", discordWebhookURL) //Debug info, not needed at the moment
 
 	// Check if Discord webhook is configured
 	if discordWebhookURL != "" {
@@ -101,34 +101,17 @@ func init() {
 	} else {
 		log.Println("No Discord webhook provided, Discord notifications will be disabled")
 	}
-	locEnv := os.Getenv("LOCATION_ENV")
-	var locerr error
-	Untis.Location, locerr = time.LoadLocation(locEnv)
-	if locerr != nil {
-		log.Fatalf("Failed to load Timezone: %v", locerr)
-	}
-	log.Printf("Timezone set to: %s", location)
 	initUpdate()
 }
 
 func main() {
-	godotenv.Load(".env")
 	go BotStart.Start()
-	go scheduleTimetableUpdate()
-
+	scheduleTimetableUpdate()
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	log.Println("Program is running. Press Ctrl+C to stop.")
-	// Start logging
-	// Run()
-	// Block until we receive a signal
 	<-sigChan
 	log.Println("Shutting down...")
-}
-
-func getTime() time.Time {
-	return time.Now().In(location)
 }
 
 func isScheduledTime(now time.Time) bool {
@@ -143,29 +126,9 @@ func isScheduledTime(now time.Time) bool {
 }
 
 func initUpdate() {
-	// Load all registered users
-	accounts, err := BotStart.LoadAndDecryptAccounts()
-	if err != nil {
-		log.Printf("Error loading accounts: %v", err)
-	}
-
-	// Add the default user from .env
 	defaultUser := os.Getenv("UNTIS_USER")
 	defaultPassword := os.Getenv("UNTIS_PASSWORD")
-	if defaultUser != "" && defaultPassword != "" {
-		accounts = append(accounts, BotStart.DecryptedAccount{
-			UserID:            "default",
-			Username:          defaultUser,
-			DecryptedPassword: defaultPassword,
-		})
-	}
-
-	// Process each user
-	for _, acc := range accounts {
-		// Fetch the latest timetable and only timetable
-		Untis.Main(acc.Username, acc.DecryptedPassword, acc.UserID)
-		time.Sleep(3 * time.Second)
-	}
+	Untis.Main(defaultUser, defaultPassword, "default")
 }
 
 func scheduleTimetableUpdate() {
@@ -178,7 +141,6 @@ func scheduleTimetableUpdate() {
 		if err != nil {
 			log.Printf("Error loading accounts: %v", err)
 		}
-
 		// Add the default user from .env
 		defaultUser := os.Getenv("UNTIS_USER")
 		defaultPassword := os.Getenv("UNTIS_PASSWORD")
@@ -194,7 +156,6 @@ func scheduleTimetableUpdate() {
 		for _, acc := range accounts {
 			// Fetch the latest timetable and only timetable
 			Untis.Update(acc.Username, acc.DecryptedPassword, acc.UserID)
-			time.Sleep(3 * time.Second)
 
 			// Check for changes
 			timetableFile := fmt.Sprintf("timetableFilled_%s.json", acc.UserID)
@@ -230,10 +191,10 @@ func scheduleTimetableUpdate() {
 				prevTimeslotMap := make(map[string]NamedTimetableEntry)
 
 				// Get current date to filter out new day changes
-				today := getTime().Format("02-01-2006")
+				today := Untis.GetTime().Format("02-01-2006")
 				// Get current time to filter any changes to Timetable before 3am so the new day changes stop
 				//
-				now := getTime()
+				now := Untis.GetTime()
 				// If before 1am stop and update userdata
 				if now.Hour() < 1 {
 					prevData[acc.UserID] = data
@@ -337,14 +298,11 @@ func scheduleTimetableUpdate() {
 						sendUpdateDiscordWebhookWithDetails(changes)
 					}
 				}
-			} else {
-				// First run — no previous data, so don't notify
-				log.Printf("First timetable fetch for user %s", acc.Username)
 			}
-
 			// Always update prevData
 			prevData[acc.UserID] = data
 		}
+		time.Sleep(3 * time.Second)
 	}
 
 	// Initial update
@@ -360,7 +318,7 @@ func scheduleTimetableUpdate() {
 
 	// Ticker for scheduled lesson notifications
 	startMinuteTicker(func() {
-		now := getTime()
+		now := Untis.GetTime()
 		if isScheduledTime(now) {
 			log.Println("Scheduled time reached, running notifications...")
 			accounts, _ := BotStart.LoadAndDecryptAccounts()
@@ -372,10 +330,11 @@ func scheduleTimetableUpdate() {
 			log.Println("Finished running notifications.")
 		}
 	})
+	log.Println("Updated all users")
 }
 
 func startMinuteTicker(f func()) {
-	now := getTime()
+	now := Untis.GetTime()
 	next := now.Truncate(time.Minute).Add(time.Minute)
 	time.Sleep(time.Until(next))
 	ticker := time.NewTicker(1 * time.Minute)
@@ -404,7 +363,7 @@ func Run(userID string) {
 	roomByStartTime, _ := MapTimeToRoom(timetableFile)
 	subjectByStartTime, _ := MapTimeToSubject(timetableFile)
 
-	now := getTime().Format("15:04")
+	now := Untis.GetTime().Format("15:04")
 
 	nextTime, room, foundRoom := NextRoomForTime(roomByStartTime, now)
 	if !foundRoom {
@@ -653,7 +612,7 @@ func sendDiscordWebhook(subject string, room string, nextTime string, Status str
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		log.Println("Discord webhook notification sent successfully")
 	} else {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		log.Printf("Discord webhook failed with status %d: %s", resp.StatusCode, string(body))
 	}
 }
@@ -684,7 +643,7 @@ func sendUpdateDiscordWebhookWithDetails(changes []string) {
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			log.Println("Detailed Discord webhook sent successfully")
 		} else {
-			body, _ := ioutil.ReadAll(resp.Body)
+			body, _ := io.ReadAll(resp.Body)
 			log.Printf("Discord webhook failed with status %d: %s", resp.StatusCode, string(body))
 		}
 	}

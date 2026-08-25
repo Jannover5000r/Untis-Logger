@@ -42,33 +42,33 @@ func Teachers(cookies []*http.Cookie) {
 		log.Fatalf("Error creatingrequest: %v", err)
 		return
 	}
-	//log.Println("prompt without extra header or cookie ", prompt)
-	//log.Println("Cookie: ", cookies)
+	// log.Println("prompt without extra header or cookie ", prompt)
+	// log.Println("Cookie: ", cookies)
 
 	prompt.Header.Set("Content-Type", "application/json")
 	prompt.Header.Set("User-Agent", "Webuntis Test")
 
 	for _, cookie := range cookies {
-		//if cookie.Name == "JSESSIONID" {
+		// if cookie.Name == "JSESSIONID" {
 		prompt.AddCookie(cookie)
 		//log.Printf("Added JSESSIONID cookie: %s=%s", cookie.Name, cookie.Value)
 		//}
 	}
-	//log.Println("Request JSON:", string(TeachersJson))
+	// log.Println("Request JSON:", string(TeachersJson))
 	out, err := http.DefaultClient.Do(prompt)
 	if err != nil {
 		log.Printf("Error during request: %v", err)
 		return
 	}
 	defer out.Body.Close()
-	//log.Println(out.Status)
+	// log.Println(out.Status)
 	response, err := io.ReadAll(out.Body)
 	if err != nil {
 		log.Printf("Error reading response body: %v", err)
 		return
 	}
-	//responseString := string(response)
-	//log.Println("Repsonse ", responseString)
+	// responseString := string(response)
+	// log.Println("Repsonse ", responseString)
 	var Response TeachersResponse
 	err = json.Unmarshal(response, &Response)
 	if err != nil {
@@ -78,9 +78,9 @@ func Teachers(cookies []*http.Cookie) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = os.WriteFile("teachers.json", data, 0644)
+	err = os.WriteFile("teachers.json", data, 0o644)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Updated Teachers")
+	// log.Println("Updated Teachers")//dont need log anymore
 }

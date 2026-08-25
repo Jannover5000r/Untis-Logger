@@ -152,7 +152,7 @@ func Timetable(cookies []*http.Cookie, userID string) {
 		return
 	}
 
-	log.Printf("Updated timetable for user %s", userID)
+	// log.Printf("Updated timetable for user %s", userID) // dont need log anymore
 	setTimetable(userID)
 }
 
@@ -249,5 +249,5 @@ func setTimetable(userID string) {
 		log.Printf("Error writing timetableFilled file: %v", err)
 		return
 	}
-	log.Printf("Filled timetable for user %s", userID)
+	// log.Printf("Filled timetable for user %s", userID)//log not needed
 }

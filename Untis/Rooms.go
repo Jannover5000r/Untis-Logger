@@ -31,7 +31,7 @@ type Room struct {
 }
 
 func Rooms(cookies []*http.Cookie) {
-	//log.Println("Abrufen der Stunden")
+	// log.Println("Abrufen der Stunden")
 	g := getRooms{"2023-05-06 15:44:22.215292", "getRooms", map[string]interface{}{}, "2.0"}
 	roomsJson, err := json.Marshal(g)
 	if err != nil {
@@ -45,33 +45,33 @@ func Rooms(cookies []*http.Cookie) {
 		log.Fatalf("Error creatingrequest: %v", err)
 		return
 	}
-	//log.Println("prompt without extra header or cookie ", prompt)
-	//log.Println("Cookie: ", cookies)
+	// log.Println("prompt without extra header or cookie ", prompt)
+	// log.Println("Cookie: ", cookies)
 
 	prompt.Header.Set("Content-Type", "application/json")
 	prompt.Header.Set("User-Agent", "Webuntis Test")
 
 	for _, cookie := range cookies {
-		//if cookie.Name == "JSESSIONID" {
+		// if cookie.Name == "JSESSIONID" {
 		prompt.AddCookie(cookie)
 		//	log.Printf("Added JSESSIONID cookie: %s=%s", cookie.Name, cookie.Value)
 		//}
 	}
-	//log.Println("Request JSON:", string(roomsJson))
+	// log.Println("Request JSON:", string(roomsJson))
 	out, err := http.DefaultClient.Do(prompt)
 	if err != nil {
 		log.Printf("Error during request: %v", err)
 		return
 	}
 	defer out.Body.Close()
-	//log.Println(out.Status)
+	// log.Println(out.Status)
 	response, err := io.ReadAll(out.Body)
 	if err != nil {
 		log.Printf("Error reading response body: %v", err)
 		return
 	}
-	//responseString := string(response)
-	//log.Println("Repsonse ", responseString)
+	// responseString := string(response)
+	// log.Println("Repsonse ", responseString)
 	var Response RoomsResponse
 	err = json.Unmarshal(response, &Response)
 	if err != nil {
@@ -82,9 +82,9 @@ func Rooms(cookies []*http.Cookie) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = os.WriteFile("rooms.json", data, 0644)
+	err = os.WriteFile("rooms.json", data, 0o644)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Updated Rooms")
+	// log.Println("Updated Rooms")//dont need log anymore
 }
