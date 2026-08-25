@@ -19,6 +19,7 @@ func init() {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		log.Printf("Failed to load timezone, set as UTC")
+		loc = time.UTC
 	}
 	Location = loc
 }
