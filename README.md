@@ -8,12 +8,13 @@
 - DISCORD_BOT_TOKEN
 - ENC_KEY (generated via head -c 32 /dev/urandom | base64)
 - URL
+- TIMEZONE (will default to UTC if empty)
 
-### URL can be found by following this structure: "<https://[SchoolName].webuntis.com/WebUntis/jsonrpc.do?school=[SchholName]" while SchoolName can be found by visiting the official website, going to the login for your school and it will be: "<https://[SchoolName].webuntis.com/WebUntis/?school=[SchoolName]#/basic/login>"
+### URL can be found by following this structure
 
-# This is a project for me, issues will be resolved as i find the motivation to do so, improvements may follow in the future
-
-## I will try to maintain this project as best as possible. Maybe add a better security to it than to trust the host but for now it is working and that was my goal. Please report any errors you find while using this bot
+"<https://[SchoolName].webuntis.com/WebUntis/jsonrpc.do?school=[SchholName]"
+while SchoolName can be found by visiting the official website, going to the login for your school and it will be:
+"<https://[SchoolName].webuntis.com/WebUntis/?school=[SchoolName]#/basic/login>"
 
 # Installation
 
