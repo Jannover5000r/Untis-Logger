@@ -104,7 +104,7 @@ func init() {
 }
 
 func main() {
-	initUpdate()
+	go func() { initUpdate() }()
 	go BotStart.Start()
 	scheduleTimetableUpdate()
 	sigChan := make(chan os.Signal, 1)
