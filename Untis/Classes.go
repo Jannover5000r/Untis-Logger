@@ -32,14 +32,14 @@ func Classes(cookies []*http.Cookie) {
 	g := getClasses{"2023-05-06 15:44:22.215292", "getKlassen", map[string]interface{}{}, "2.0"}
 	ClassesJson, err := json.Marshal(g)
 	if err != nil {
-		log.Fatalf("Error marshaling login data: %v", err)
+		log.Printf("Error marshaling login data: %v", err)
 		return
 	}
 	classes := bytes.NewReader(ClassesJson)
 
 	prompt, err := http.NewRequest("POST", Url, classes)
 	if err != nil {
-		log.Fatalf("Error creatingrequest: %v", err)
+		log.Printf("Error creatingrequest: %v", err)
 		return
 	}
 	// log.Println("prompt without extra header or cookie ", prompt)
@@ -72,15 +72,17 @@ func Classes(cookies []*http.Cookie) {
 	var Response ClassesResponse
 	err = json.Unmarshal(response, &Response)
 	if err != nil {
-		log.Fatalf("Error unmarshaling response: %v", err)
+		log.Printf("Error unmarshaling response: %v", err)
 	}
 	data, err := json.MarshalIndent(Response.Result, "", "  ")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	err = os.WriteFile("classes.json", data, 0o644)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	// log.Println("Updated Classes")//dont need log anymore
 }

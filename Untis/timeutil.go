@@ -8,17 +8,21 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var (
-	locerr   error
-	Location *time.Location
-)
+var Location *time.Location
 
-func GetTime() time.Time {
+func init() {
 	godotenv.Load("../.env")
 	timezone := os.Getenv("LOCATION_ENV")
-	Location, locerr = time.LoadLocation(timezone)
-	if locerr != nil {
-		log.Fatalf("Failed to load Timezone: %v", locerr)
+	if timezone == "" {
+		timezone = "UTC"
 	}
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		log.Printf("Failed to load timezone, set as UTC")
+	}
+	Location = loc
+}
+
+func GetTime() time.Time {
 	return time.Now().In(Location)
 }

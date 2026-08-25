@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -59,21 +60,29 @@ func Update(user, password, userID string) {
 }
 
 func Auth(user, password, userID string) ([]*http.Cookie, error) {
-	l := Login{"2023-05-06 15:44:22.215292", "authenticate", Params{user, password, "WebUntis Test"}, "2.0"}
-	loginJSON, err := json.Marshal(l)
-	if err != nil {
-		return nil, err
-	}
-	login := bytes.NewReader(loginJSON)
+	loginJSON, _ := json.Marshal(Login{
+		"2023-05-06 15:44:22.215292", "authenticate",
+		Params{user, password, "WebUntis Test"},
+		"2.0",
+	})
 	if Url == "" {
 		Url = os.Getenv("URL")
 	}
-	LoginOut, err := http.Post(Url, "application/json", login)
+
+	var LoginOut *http.Response
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		LoginOut, err = http.Post(Url, "application/json", bytes.NewReader(loginJSON))
+		if err == nil {
+			break
+		}
+		log.Printf("Auth attempt %d/3 failed for %s: %v", attempt, user, err)
+		time.Sleep(time.Duration(attempt*2) * time.Second)
+	}
 	if err != nil {
 		return nil, err
 	}
 	defer LoginOut.Body.Close()
-
 	cookies := LoginOut.Cookies()
 	//	log.Printf("Login successful for user: %s", user)//log not needed
 

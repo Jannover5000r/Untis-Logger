@@ -101,10 +101,10 @@ func init() {
 	} else {
 		log.Println("No Discord webhook provided, Discord notifications will be disabled")
 	}
-	initUpdate()
 }
 
 func main() {
+	initUpdate()
 	go BotStart.Start()
 	scheduleTimetableUpdate()
 	sigChan := make(chan os.Signal, 1)
@@ -301,8 +301,8 @@ func scheduleTimetableUpdate() {
 			}
 			// Always update prevData
 			prevData[acc.UserID] = data
+			time.Sleep(3 * time.Second)
 		}
-		time.Sleep(3 * time.Second)
 	}
 
 	// Initial update
